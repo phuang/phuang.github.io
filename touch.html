@@ -1,0 +1,18 @@
+<html>
+  <head>
+  <script>
+window.addEventListener('load', function() {
+  document.body.addEventListener('touchstart', function(e) {
+    console.log("touchstart:" + e);
+  });
+  document.body.addEventListener('touchmove', function(e) {
+    console.log("touchmove:" + e);
+  });
+  document.body.addEventListener('touchend', function(e) {
+    console.log("touchend:" + e);
+  });
+});
+  </script>
+  </head>
+  <body></body>
+</html>

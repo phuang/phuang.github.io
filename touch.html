@@ -4,12 +4,15 @@
 window.addEventListener('load', function() {
   document.body.addEventListener('touchstart', function(e) {
     console.log("touchstart:" + e);
+    e.preventDefault();
   });
   document.body.addEventListener('touchmove', function(e) {
     console.log("touchmove:" + e);
+    e.preventDefault();
   });
   document.body.addEventListener('touchend', function(e) {
     console.log("touchend:" + e);
+    e.preventDefault();
   });
 });
   </script>

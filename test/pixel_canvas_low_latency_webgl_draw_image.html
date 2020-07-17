@@ -23,7 +23,7 @@ function waitForFinish()
     domAutomationController.send("SUCCESS");
   } else {
     g_swapsBeforeAck--;
-    window.requestAnimationFrame(waitForFinish);
+    window.requestAnimationFrame(main);
   }
 }
 

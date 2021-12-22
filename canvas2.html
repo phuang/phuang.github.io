@@ -1,0 +1,12 @@
+<body>
+  <canvas id="c"></canvas>
+</body>
+<script type="text/javascript">
+  const ctx = document.getElementById("c").getContext("2d");
+
+  function draw() {
+    ctx.fillRect(10, 10, 100, 100);
+    requestAnimationFrame(draw);
+  }
+  draw()
+</script>

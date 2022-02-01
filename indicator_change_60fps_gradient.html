@@ -18,17 +18,24 @@
 
   
    <script>
-   requestAnimationFrame(drawAnimation);
-  var frame_even = false;
+requestAnimationFrame(drawAnimation);
   var frame_count = 0;
   function drawAnimation () {
-    frame_even = !frame_even;
-    var str = " . " + (frame_count% 60).toString() + ":"+ Math.floor(frame_count/ 60).toString() + " x ";
-    var bigstr = str;
-    document.getElementById("textupdate").innerHTML = bigstr;
-    frame_count = requestAnimationFrame(drawAnimation);
-  }
+    
+    if(frame_count % 10 == 0)
+    {
+	window.scroll({
+	  top: frame_count*10,
+	  left: 0,
+	  behavior: 'smooth'
+	});
+	frame_count = frame_count % 120;
+    }
 
+    frame_count++;
+    requestAnimationFrame(drawAnimation);
+}
+     
   </script>
 
 

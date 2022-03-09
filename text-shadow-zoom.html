@@ -1,0 +1,41 @@
+<style>
+    .container {
+        position: relative;
+        width: 75%;
+        float: left;
+        overflow: hidden;
+    }
+
+    .zoom {
+        padding: 50px;
+        background-color: green;
+        transition: transform .2s;
+        /* Animation */
+        width: 400px;
+        height: 400px;
+        margin: 0 auto;
+        z-index: 1;
+    }
+
+    .zoom:hover {
+        transform: scale(1.5);
+        /* (150% zoom - Note: if the zoom is too large, it will go outside of the viewport) */
+    }
+
+    .shadow-text {
+        font-size: 42px;
+        pointer-events: none;
+        color: #fff;
+        position: absolute;
+        padding: 20px;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 1;
+        text-shadow: 0 0 50px rgb(0 0 0 / 60%), 0 0 10px rgb(0 0 0 / 70%);
+    }
+</style>
+<div class="container">
+    <div class="zoom"></div>
+    <div class="shadow-text">Shadow Text</div>
+</div>

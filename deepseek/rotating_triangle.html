@@ -142,6 +142,19 @@
             requestAnimationFrame(animate);
         }
         
+        // Click to launch ball
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left - canvas.width/2;
+            const mouseY = event.clientY - rect.top - canvas.height/2;
+            
+            // Set ball position and velocity
+            ball.x = mouseX;
+            ball.y = mouseY;
+            ball.velocityX = (mouseX - ball.x) * 0.1;
+            ball.velocityY = (mouseY - ball.y) * 0.1;
+        });
+        
         animate();
     </script>
 </body>

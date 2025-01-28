@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        canvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #f0f0f0;
+        }
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const gl = canvas.getContext('webgl');
+
+        // Set canvas size
+        canvas.width = 800;
+        canvas.height = 600;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+
+        // Vertex and fragment shaders
+        const vertexShaderSource = `
+            attribute vec2 a_position;
+            uniform mat3 u_matrix;
+            void main() {
+                vec2 position = (u_matrix * vec3(a_position, 1)).xy;
+                gl_Position = vec4(position, 0, 1);
+            }
+        `;
+
+        const fragmentShaderSource = `
+            precision mediump float;
+            uniform vec4 u_color;
+            void main() {
+                gl_FragColor = u_color;
+            }
+        `;
+
+        // Compile shaders
+        const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+        const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+        const program = createProgram(gl, vertexShader, fragmentShader);
+        gl.useProgram(program);
+
+        // Get attribute and uniform locations
+        const positionAttributeLocation = gl.getAttribLocation(program, 'a_position');
+        const matrixUniformLocation = gl.getUniformLocation(program, 'u_matrix');
+        const colorUniformLocation = gl.getUniformLocation(program, 'u_color');
+
+        // Create buffers
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+
+        // Triangle vertices (normalized coordinates)
+        const triangleVertices = [
+            -0.5, 0.5,  // Left base
+            0.5, 0.5,   // Right base
+            0.0, -0.5,  // Top
+            -0.5, 0.5   // Close the triangle
+        ];
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangleVertices), gl.STATIC_DRAW);
+
+        // Ball properties
+        const ball = {
+            x: 0,
+            y: 0,
+            radius: 0.05,
+            color: [1.0, 0.0, 0.0, 1.0] // Red
+        };
+
+        // Rotation
+        let rotation = 0;
+        const rotationSpeed = 0.02;
+
+        // Draw triangle outline
+        function drawTriangle() {
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangleVertices), gl.STATIC_DRAW);
+
+            gl.enableVertexAttribArray(positionAttributeLocation);
+            gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+
+            const matrix = getRotationMatrix(rotation);
+            gl.uniformMatrix3fv(matrixUniformLocation, false, matrix);
+            gl.uniform4fv(colorUniformLocation, [0.2, 0.6, 1.0, 1.0]); // Blue color
+
+            gl.drawArrays(gl.LINE_STRIP, 0, 4); // Draw triangle outline
+        }
+
+        // Draw ball
+        function drawBall() {
+            const ballVertices = [];
+            const segments = 32; // Number of segments to approximate a circle
+            for (let i = 0; i <= segments; i++) {
+                const angle = (i / segments) * Math.PI * 2;
+                ballVertices.push(
+                    ball.x + Math.cos(angle) * ball.radius,
+                    ball.y + Math.sin(angle) * ball.radius
+                );
+            }
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(ballVertices), gl.STATIC_DRAW);
+
+            gl.enableVertexAttribArray(positionAttributeLocation);
+            gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+
+            const matrix = getTranslationMatrix(ball.x, ball.y);
+            gl.uniformMatrix3fv(matrixUniformLocation, false, matrix);
+            gl.uniform4fv(colorUniformLocation, ball.color);
+
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, segments + 1); // Draw ball
+        }
+
+        // Animation loop
+        function animate() {
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            // Update rotation
+            rotation += rotationSpeed;
+
+            // Draw triangle outline
+            drawTriangle();
+
+            // Draw ball
+            drawBall();
+
+            requestAnimationFrame(animate);
+        }
+
+        // Helper functions
+        function compileShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error('Shader compilation failed:', gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        function createProgram(gl, vertexShader, fragmentShader) {
+            const program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                console.error('Program linking failed:', gl.getProgramInfoLog(program));
+                gl.deleteProgram(program);
+                return null;
+            }
+            return program;
+        }
+
+        function getRotationMatrix(angle) {
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            return [
+                cos, -sin, 0,
+                sin, cos, 0,
+                0, 0, 1
+            ];
+        }
+
+        function getTranslationMatrix(x, y) {
+            return [
+                1, 0, 0,
+                0, 1, 0,
+                x, y, 1
+            ];
+        }
+
+        // Click to move ball
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = (event.clientX - rect.left) / canvas.width * 2 - 1;
+            const mouseY = -(event.clientY - rect.top) / canvas.height * 2 + 1;
+
+            ball.x = mouseX;
+            ball.y = mouseY;
+        });
+
+        // Start animation
+        animate();
+    </script>
+</body>
+</html>

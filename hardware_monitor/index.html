@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced System Telemetry - Heterogeneous CPU</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        
+        :root {
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --accent-blue: #38bdf8;
+            --accent-green: #4ade80;
+            --accent-red: #fb7185;
+            --accent-orange: #fb923c;
+            --accent-purple: #c084fc;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #f1f5f9;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            transition: background-color 0.3s ease;
+        }
+
+        .mono { font-family: 'JetBrains+Mono', monospace; }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            cursor: pointer; /* Suggest interactivity */
+        }
+
+        /* Fullscreen Overlay Style */
+        .glass-card.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+            border-radius: 0;
+            background: var(--bg-dark);
+            padding: 2rem;
+            cursor: default;
+        }
+
+        .fullscreen .chart-container {
+            height: calc(100vh - 150px) !important;
+        }
+
+        .status-pulse {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0: { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(74, 222, 128, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+        }
+
+        .chart-container {
+            height: 200px;
+            position: relative;
+            transition: height 0.3s ease;
+        }
+
+        .expand-btn {
+            opacity: 0.4;
+            transition: opacity 0.2s, transform 0.2s;
+        }
+        .expand-btn:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        .layout-btn {
+            @apply p-2 rounded-md transition-all border border-slate-700 bg-slate-800/50 text-slate-400 hover:text-white hover:border-slate-500 flex items-center justify-center;
+        }
+        .layout-btn.active {
+            @apply bg-sky-500/20 text-sky-400 border-sky-500/50;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <header class="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row md:items-end justify-between border-b border-slate-800 pb-6 gap-6">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight text-white">CPU Cluster <span class="text-sky-400">Telemetry</span></h1>
+            <p class="text-slate-400 text-sm mt-1 flex items-center gap-2">
+                <span class="status-pulse"></span> Analyzing Heterogeneous Architecture (Big.LITTLE)
+            </p>
+        </div>
+        
+        <div class="flex flex-wrap items-center gap-4">
+            <div class="flex bg-slate-900/50 p-1 rounded-lg border border-slate-800 gap-1">
+                <button onclick="setLayout('standard')" id="btn-standard" class="layout-btn active" title="Balanced View">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                </button>
+                <button onclick="setLayout('list')" id="btn-list" class="layout-btn" title="List View">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><rect width="20" height="5" x="2" y="11" rx="1"/><rect width="20" height="5" x="2" y="19" rx="1"/></svg>
+                </button>
+                <button onclick="setLayout('grid')" id="btn-grid" class="layout-btn" title="Grid View">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+                </button>
+            </div>
+            <div class="text-right border-l border-slate-800 pl-4">
+                <div class="text-xs uppercase tracking-widest text-slate-500 font-bold">Session Uptime</div>
+                <div class="mono text-sky-400 text-xl leading-none mt-1" id="timer">00:00:00</div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6" id="main-grid">
+        <!-- Figure 1: Big Cores -->
+        <div class="glass-card p-5 md:col-span-1" id="container-big" ondblclick="toggleFullscreen('container-big')">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="text-rose-400 font-bold text-xs uppercase tracking-wider">Big Cores</h3>
+                    <span id="stat-big" class="mono text-[10px] text-slate-400">Avg: 0%</span>
+                </div>
+                <button onclick="event.stopPropagation(); toggleFullscreen('container-big')" class="expand-btn text-slate-500 hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 3 6 6M9 21l-6-6M21 3l-6 6M3 21l6-6"/></svg>
+                </button>
+            </div>
+            <div class="chart-container">
+                <canvas id="chartBig"></canvas>
+            </div>
+        </div>
+
+        <!-- Figure 2: Mid Cores -->
+        <div class="glass-card p-5 md:col-span-1" id="container-mid" ondblclick="toggleFullscreen('container-mid')">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="text-orange-400 font-bold text-xs uppercase tracking-wider">Mid Cores</h3>
+                    <span id="stat-mid" class="mono text-[10px] text-slate-400">Avg: 0%</span>
+                </div>
+                <button onclick="event.stopPropagation(); toggleFullscreen('container-mid')" class="expand-btn text-slate-500 hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 3 6 6M9 21l-6-6M21 3l-6 6M3 21l6-6"/></svg>
+                </button>
+            </div>
+            <div class="chart-container">
+                <canvas id="chartMid"></canvas>
+            </div>
+        </div>
+
+        <!-- Figure 3: Little Cores -->
+        <div class="glass-card p-5 md:col-span-1" id="container-little" ondblclick="toggleFullscreen('container-little')">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="text-emerald-400 font-bold text-xs uppercase tracking-wider">Little Cores</h3>
+                    <span id="stat-little" class="mono text-[10px] text-slate-400">Avg: 0%</span>
+                </div>
+                <button onclick="event.stopPropagation(); toggleFullscreen('container-little')" class="expand-btn text-slate-500 hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 3 6 6M9 21l-6-6M21 3l-6 6M3 21l6-6"/></svg>
+                </button>
+            </div>
+            <div class="chart-container">
+                <canvas id="chartLittle"></canvas>
+            </div>
+        </div>
+
+        <!-- Figure 4: Power Rails -->
+        <div class="glass-card p-5 md:col-span-3" id="container-power" ondblclick="toggleFullscreen('container-power')">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="text-slate-400 font-semibold text-xs uppercase tracking-wider">Power Rails (W)</h3>
+                    <div class="flex gap-2 text-[8px] uppercase font-bold mono mt-1">
+                        <span class="text-sky-400">CPU</span> <span class="text-purple-400">GPU</span> <span class="text-emerald-400">MEM</span>
+                    </div>
+                </div>
+                <button onclick="event.stopPropagation(); toggleFullscreen('container-power')" class="expand-btn text-slate-500 hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 3 6 6M9 21l-6-6M21 3l-6 6M3 21l6-6"/></svg>
+                </button>
+            </div>
+            <div class="chart-container">
+                <canvas id="chartPower"></canvas>
+            </div>
+        </div>
+
+        <!-- Figure 5: Thermal Zones -->
+        <div class="glass-card p-5 md:col-span-3" id="container-temp" ondblclick="toggleFullscreen('container-temp')">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="text-slate-400 font-semibold text-xs uppercase tracking-wider">Thermal Zones (°C)</h3>
+                    <div class="flex gap-4 text-[10px] uppercase font-bold mono mt-1">
+                        <span class="text-rose-400">CPU</span> <span class="text-orange-400">VSkin</span> <span class="text-sky-400">USB</span>
+                    </div>
+                </div>
+                <button onclick="event.stopPropagation(); toggleFullscreen('container-temp')" class="expand-btn text-slate-500 hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 3 6 6M9 21l-6-6M21 3l-6 6M3 21l6-6"/></svg>
+                </button>
+            </div>
+            <div class="chart-container">
+                <canvas id="chartTemp"></canvas>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const HISTORY_LIMIT = 60;
+        const labels = Array(HISTORY_LIMIT).fill('');
+        let startTime = Date.now();
+
+        const clusters = {
+            big: { count: 2, label: 'Big', h: 354, s: 95, l: 71 },
+            mid: { count: 2, label: 'Mid', h: 27, s: 96, l: 61 },
+            little: { count: 4, label: 'Little', h: 142, s: 71, l: 58 }
+        };
+
+        // Layout Logic
+        function setLayout(mode) {
+            const cards = {
+                big: document.getElementById('container-big'),
+                mid: document.getElementById('container-mid'),
+                little: document.getElementById('container-little'),
+                power: document.getElementById('container-power'),
+                temp: document.getElementById('container-temp')
+            };
+
+            document.querySelectorAll('.layout-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`btn-${mode}`).classList.add('active');
+
+            Object.values(cards).forEach(card => {
+                card.classList.remove('md:col-span-1', 'md:col-span-2', 'md:col-span-3');
+            });
+
+            if (mode === 'standard') {
+                cards.big.classList.add('md:col-span-1');
+                cards.mid.classList.add('md:col-span-1');
+                cards.little.classList.add('md:col-span-1');
+                cards.power.classList.add('md:col-span-3');
+                cards.temp.classList.add('md:col-span-3');
+            } else if (mode === 'list') {
+                Object.values(cards).forEach(card => card.classList.add('md:col-span-3'));
+            } else if (mode === 'grid') {
+                Object.values(cards).forEach(card => card.classList.add('md:col-span-1'));
+            }
+
+            setTimeout(() => {
+                Object.values(charts).forEach(chart => chart.resize());
+            }, 50);
+        }
+
+        // Fullscreen logic
+        function toggleFullscreen(containerId) {
+            const el = document.getElementById(containerId);
+            const isFull = el.classList.contains('fullscreen');
+            
+            // Clear any other fullscreen element
+            document.querySelectorAll('.glass-card').forEach(card => {
+                if(card.id !== containerId) card.classList.remove('fullscreen');
+            });
+            
+            if (!isFull) {
+                el.classList.add('fullscreen');
+                document.body.style.overflow = 'hidden';
+            } else {
+                el.classList.remove('fullscreen');
+                document.body.style.overflow = 'auto';
+            }
+            
+            // Chart.js needs a resize trigger after DOM changes
+            setTimeout(() => {
+                Object.values(charts).forEach(chart => chart.resize());
+            }, 50);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.glass-card').forEach(card => card.classList.remove('fullscreen'));
+                document.body.style.overflow = 'auto';
+                Object.values(charts).forEach(chart => chart.resize());
+            }
+        });
+
+        const initClusterChart = (id, cluster) => {
+            const ctx = document.getElementById(id).getContext('2d');
+            const datasets = [];
+            for(let i = 0; i < cluster.count; i++) {
+                const l = cluster.l - (i * 8); 
+                const s = cluster.s - (i * 5);
+                const borderColor = `hsl(${cluster.h}, ${s}%, ${l}%)`;
+
+                datasets.push({
+                    label: `${cluster.label} Core ${i}`,
+                    data: Array(HISTORY_LIMIT).fill(0),
+                    borderColor: borderColor,
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    tension: 0.4,
+                    backgroundColor: 'transparent'
+                });
+            }
+            return new Chart(ctx, {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { display: false },
+                        y: { 
+                            min: 0, max: 100,
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#64748b', stepSize: 25 }
+                        }
+                    }
+                }
+            });
+        };
+
+        const initPowerChart = () => {
+            const ctx = document.getElementById('chartPower').getContext('2d');
+            return new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'CPU', data: Array(HISTORY_LIMIT).fill(0), borderColor: '#38bdf8', borderWidth: 2, pointRadius: 0, tension: 0.3 },
+                        { label: 'GPU', data: Array(HISTORY_LIMIT).fill(0), borderColor: '#c084fc', borderWidth: 2, pointRadius: 0, tension: 0.3 },
+                        { label: 'MEM', data: Array(HISTORY_LIMIT).fill(0), borderColor: '#4ade80', borderWidth: 2, pointRadius: 0, tension: 0.3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { display: false },
+                        y: { min: 0, max: 150, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } }
+                    }
+                }
+            });
+        };
+
+        const initTempChart = () => {
+            const ctx = document.getElementById('chartTemp').getContext('2d');
+            return new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'CPU', data: Array(HISTORY_LIMIT).fill(0), borderColor: '#fb7185', borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true, backgroundColor: 'rgba(251, 113, 133, 0.05)' },
+                        { label: 'VSkin', data: Array(HISTORY_LIMIT).fill(0), borderColor: '#fb923c', borderWidth: 2, pointRadius: 0, tension: 0.3 },
+                        { label: 'USB', data: Array(HISTORY_LIMIT).fill(0), borderColor: '#38bdf8', borderWidth: 2, pointRadius: 0, tension: 0.3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { display: false },
+                        y: { min: 20, max: 100, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } }
+                    }
+                }
+            });
+        };
+
+        const charts = {
+            big: initClusterChart('chartBig', clusters.big),
+            mid: initClusterChart('chartMid', clusters.mid),
+            little: initClusterChart('chartLittle', clusters.little),
+            power: initPowerChart(),
+            temp: initTempChart()
+        };
+
+        function updateData() {
+            const diff = Math.floor((Date.now() - startTime) / 1000);
+            const hrs = String(Math.floor(diff / 3600)).padStart(2, '0');
+            const mins = String(Math.floor((diff % 3600) / 60)).padStart(2, '0');
+            const secs = String(diff % 60).padStart(2, '0');
+            const timerEl = document.getElementById('timer');
+            if (timerEl) timerEl.innerText = `${hrs}:${mins}:${secs}`;
+
+            const systemActivity = 15 + Math.sin(diff / 10) * 10 + Math.random() * 5;
+            const gpuActivity = 5 + Math.cos(diff / 8) * 15 + Math.random() * 10;
+            
+            let cpuPower = 2;
+            let cpuTempBase = 35;
+
+            Object.keys(clusters).forEach(key => {
+                const cluster = clusters[key];
+                const chart = charts[key];
+                let clusterSum = 0;
+
+                chart.data.datasets.forEach((ds) => {
+                    let load = systemActivity;
+                    if (key === 'big') load *= (1.8 + Math.random() * 0.4);
+                    if (key === 'little') load *= 0.5;
+                    
+                    const finalVal = Math.min(100, Math.max(0, load + (Math.random() * 15)));
+                    ds.data.shift();
+                    ds.data.push(finalVal);
+                    clusterSum += finalVal;
+                    
+                    cpuPower += (finalVal * (key === 'big' ? 0.6 : 0.15));
+                    cpuTempBase += (finalVal * (key === 'big' ? 0.3 : 0.05)) / 8;
+                });
+                const statEl = document.getElementById(`stat-${key}`);
+                if (statEl) statEl.innerText = `Avg: ${Math.round(clusterSum / cluster.count)}%`;
+                chart.update('none');
+            });
+
+            const gpuPower = 3 + (gpuActivity * 1.1);
+            const memPower = 4 + (systemActivity * 0.15) + (Math.random() * 2);
+            const powerData = [cpuPower, gpuPower, memPower];
+            charts.power.data.datasets.forEach((ds, i) => {
+                ds.data.shift();
+                ds.data.push(powerData[i]);
+            });
+            charts.power.update('none');
+
+            const cpuTemp = cpuTempBase + (gpuActivity * 0.15);
+            const vskinTemp = 28 + (cpuTemp * 0.2) + (Math.random() * 1);
+            const usbTemp = 25 + (systemActivity * 0.05) + (Math.random() * 0.5);
+            const tempData = [cpuTemp, vskinTemp, usbTemp];
+            charts.temp.data.datasets.forEach((ds, i) => {
+                ds.data.shift();
+                ds.data.push(tempData[i]);
+            });
+            charts.temp.update('none');
+        }
+
+        setInterval(updateData, 1000);
+        window.onload = updateData;
+    </script>
+</body>
+</html>

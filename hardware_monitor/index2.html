@@ -40,24 +40,33 @@
             </div>
             
             <div class="flex flex-wrap items-center gap-3">
+                <!-- Layout Selection -->
                 <div class="flex bg-white rounded-lg shadow-sm border border-gray-100 p-1">
                     <button id="btn-grid" onclick="UI.setLayout('grid')" class="px-4 py-1.5 rounded-md text-sm font-bold transition-all bg-blue-600 text-white shadow-sm">Grid</button>
                     <button id="btn-list" onclick="UI.setLayout('list')" class="px-4 py-1.5 rounded-md text-sm font-bold transition-all text-gray-500 hover:text-gray-700">List</button>
                 </div>
 
+                <!-- Live Search -->
                 <div class="relative">
                     <input type="text" id="chart-filter" oninput="UI.filterCharts(this.value)" placeholder="Filter charts (e.g. CPU|TEMP)..." class="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 outline-none text-sm w-48 md:w-64">
                     <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 </div>
 
+                <!-- Simulation Speed -->
                 <div class="flex items-center gap-2 bg-white p-2 rounded-lg shadow-sm border border-gray-100">
                     <span class="text-sm font-medium text-gray-500 ml-2">Sim Rate:</span>
-                    <select id="interval-select" onchange="Sim.updateRate(this.value)" class="text-sm border-none focus:ring-0 cursor-pointer font-bold text-blue-600 bg-transparent">
+                    <select id="interval-select" onchange="Sim.updateRate(this.value)" class="text-sm border-none focus:ring-0 cursor-pointer font-bold text-blue-600 bg-transparent mr-2">
                         <option value="1000">1.0s</option>
                         <option value="500">0.5s</option>
                         <option value="0">Paused</option>
                     </select>
                 </div>
+
+                <!-- Save Button (NEW) -->
+                <button id="btn-save" onclick="Settings.saveManual()" class="px-5 py-2 bg-gray-800 text-white text-sm font-bold rounded-lg shadow-sm hover:bg-gray-700 transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                    Save Settings
+                </button>
             </div>
         </header>
 
@@ -67,7 +76,7 @@
 
     <script>
         const CONFIG = {
-            STORAGE_KEY: 'sys_monitor_settings_v3',
+            STORAGE_KEY: 'sys_monitor_settings_manual',
             HISTORY_LEN: 30,
             CLUSTERS: [
                 { id: 'big',    name: 'Big Cluster',    color: '#ef4444', cores: 2, maxGHz: 3.2, keywords: 'cpu processor cores' },
@@ -116,17 +125,45 @@
 
         const Settings = {
             data: { layout: 'grid', filter: '', simRate: '1000' },
-            save() { localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(this.data)); },
+            
+            // Manual Save: Scans current UI state and persists it
+            saveManual() {
+                // 1. Capture current status
+                this.data.layout = document.getElementById('grid-top').classList.contains('grid-cols-1') ? 'list' : 'grid';
+                this.data.filter = document.getElementById('chart-filter').value;
+                this.data.simRate = document.getElementById('interval-select').value;
+                
+                // 2. Persist
+                localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(this.data));
+                
+                // 3. Visual Feedback
+                const btn = document.getElementById('btn-save');
+                const originalContent = btn.innerHTML;
+                btn.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    Settings Saved
+                `;
+                btn.classList.add('bg-green-600');
+                btn.classList.remove('bg-gray-800');
+                
+                setTimeout(() => {
+                    btn.innerHTML = originalContent;
+                    btn.classList.remove('bg-green-600');
+                    btn.classList.add('bg-gray-800');
+                }, 2000);
+            },
+
             load() {
                 const stored = localStorage.getItem(CONFIG.STORAGE_KEY);
                 if (stored) { try { this.data = { ...this.data, ...JSON.parse(stored) }; } catch (e) {} }
             },
+
             apply() {
-                UI.setLayout(this.data.layout, false);
+                UI.setLayout(this.data.layout);
                 document.getElementById('chart-filter').value = this.data.filter;
-                UI.filterCharts(this.data.filter, false);
+                UI.filterCharts(this.data.filter);
                 document.getElementById('interval-select').value = this.data.simRate;
-                Sim.updateRate(this.data.simRate, false);
+                Sim.updateRate(this.data.simRate);
             }
         };
 
@@ -255,8 +292,9 @@
                 });
 
                 CONFIG.STATS.forEach(s => {
+                    const keywords = s.readouts.map(r => r.label).join(' ');
                     bottomGrid.innerHTML += `
-                    <div class="chart-card bg-white p-6 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group" data-title="${s.title} ${s.keywords}">
+                    <div class="chart-card bg-white p-6 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group" data-title="${s.title} ${s.keywords} ${keywords}">
                         <button onclick="UI.toggleExpand(this, '${s.id}')" class="toggle-btn absolute top-12 right-4 p-1 rounded-md hover:bg-gray-100 text-gray-400 z-20"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg></button>
                         <div class="flex justify-between items-start mb-4">
                             <h2 class="text-lg font-semibold text-gray-700">${s.title}</h2>
@@ -274,7 +312,7 @@
                 });
             },
 
-            setLayout(mode, doSave = true) {
+            setLayout(mode) {
                 const gTop = document.getElementById('grid-top'), gBottom = document.getElementById('grid-bottom');
                 const bGrid = document.getElementById('btn-grid'), bList = document.getElementById('btn-list');
                 if (mode === 'grid') {
@@ -288,7 +326,6 @@
                     bList.className = 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm';
                     bGrid.className = 'px-4 py-1.5 text-sm font-bold text-gray-500';
                 }
-                if(doSave) { Settings.data.layout = mode; Settings.save(); }
                 setTimeout(() => Object.values(Monitor.charts).forEach(c => c.resize()), 150);
             },
 
@@ -299,7 +336,7 @@
                 setTimeout(() => Monitor.charts[key].resize(), 300);
             },
 
-            filterCharts(val, doSave = true) {
+            filterCharts(val) {
                 const rawVal = val.toLowerCase().trim();
                 const keywords = rawVal.split('|').map(k => k.trim()).filter(k => k.length > 0);
                 document.querySelectorAll('.chart-card').forEach(c => {
@@ -307,17 +344,15 @@
                     const matches = keywords.length === 0 || keywords.some(k => searchable.includes(k));
                     c.classList.toggle('hidden', !matches);
                 });
-                if(doSave) { Settings.data.filter = val; Settings.save(); }
                 Object.values(Monitor.charts).forEach(c => c.resize());
             }
         };
 
         const Sim = {
             interval: null,
-            updateRate(ms, doSave = true) {
+            updateRate(ms) {
                 clearInterval(this.interval);
                 if (ms > 0) this.interval = setInterval(() => this.tick(), ms);
-                if(doSave) { Settings.data.simRate = ms; Settings.save(); }
             },
             tick() {
                 const load = (base) => Math.max(5, Math.min(95, base + (Math.random() - 0.5) * 40));

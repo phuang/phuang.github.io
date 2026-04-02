@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
-        body { background-color: #f3f4f6; transition: background-color: 0.3s; }
+        body { background-color: #f3f4f6; transition: background-color 0.3s; }
         .chart-card { transition: all 0.2s ease-in-out; position: relative; }
         .chart-card.hidden { display: none; }
         .chart-container { height: 300px; transition: height 0.3s ease; }
@@ -46,7 +46,7 @@
                 </div>
 
                 <div class="relative">
-                    <input type="text" id="chart-filter" oninput="UI.filterCharts(this.value)" placeholder="Filter charts..." class="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 outline-none text-sm w-48 md:w-64">
+                    <input type="text" id="chart-filter" oninput="UI.filterCharts(this.value)" placeholder="Filter charts (e.g. CPU|TEMP)..." class="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 outline-none text-sm w-48 md:w-64">
                     <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 </div>
 
@@ -61,28 +61,24 @@
             </div>
         </header>
 
-        <!-- Use Tailwind Classes directly for grid control -->
         <div class="grid-layout mb-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3" id="grid-top"></div>
         <div class="grid-layout grid-cols-1 md:grid-cols-2" id="grid-bottom"></div>
     </div>
 
     <script>
-        /**
-         * ==========================================
-         * 1. CONFIGURATION
-         * ==========================================
-         */
         const CONFIG = {
+            STORAGE_KEY: 'sys_monitor_settings_v3',
             HISTORY_LEN: 30,
             CLUSTERS: [
-                { id: 'big',    name: 'Big Cluster',    color: '#ef4444', cores: 2, maxGHz: 3.2 },
-                { id: 'mid',    name: 'Mid Cluster',    color: '#f59e0b', cores: 2, maxGHz: 2.4 },
-                { id: 'little', name: 'Little Cluster', color: '#10b981', cores: 4, maxGHz: 1.8 }
+                { id: 'big',    name: 'Big Cluster',    color: '#ef4444', cores: 2, maxGHz: 3.2, keywords: 'cpu processor cores' },
+                { id: 'mid',    name: 'Mid Cluster',    color: '#f59e0b', cores: 2, maxGHz: 2.4, keywords: 'cpu processor balanced' },
+                { id: 'little', name: 'Little Cluster', color: '#10b981', cores: 4, maxGHz: 1.8, keywords: 'cpu processor efficiency' }
             ],
             STATS: [
                 { 
                     id: 'temp', 
                     title: 'Temperatures (°C)', 
+                    keywords: 'soc thermals package heat',
                     readouts: [
                         { id: 'temp-pkg', label: 'CPU Pkg', color: 'orange', min: 30, max: 100, unit: '°C' },
                         { id: 'temp-gpu', label: 'GPU Core', color: 'purple', min: 30, max: 100, unit: '°C' }
@@ -91,6 +87,7 @@
                 { 
                     id: 'power', 
                     title: 'Power Consumption (W)', 
+                    keywords: 'wattage battery energy consumption package dram',
                     readouts: [
                         { id: 'power-pkg', label: 'Pkg', color: 'pink', min: 0, max: 120, unit: 'W' },
                         { id: 'power-dram', label: 'DRAM', color: 'cyan', min: 0, max: 120, unit: 'W' }
@@ -99,11 +96,13 @@
                 { 
                     id: 'fps', 
                     title: 'Frame Rate (FPS)', 
+                    keywords: 'performance framerate graphics display',
                     readouts: [{ id: 'fps', label: 'FPS', color: 'blue', min: 0, max: 144, unit: '' }]
                 },
                 { 
                     id: 'eff', 
                     title: 'Efficiency (FPS/W)', 
+                    keywords: 'performance ratio battery life energy',
                     readouts: [{ id: 'eff', label: 'FPS/W', color: 'emerald', min: 0, max: 10, unit: '' }]
                 }
             ],
@@ -115,11 +114,22 @@
             }
         };
 
-        /**
-         * ==========================================
-         * 2. MONITOR ENGINE
-         * ==========================================
-         */
+        const Settings = {
+            data: { layout: 'grid', filter: '', simRate: '1000' },
+            save() { localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(this.data)); },
+            load() {
+                const stored = localStorage.getItem(CONFIG.STORAGE_KEY);
+                if (stored) { try { this.data = { ...this.data, ...JSON.parse(stored) }; } catch (e) {} }
+            },
+            apply() {
+                UI.setLayout(this.data.layout, false);
+                document.getElementById('chart-filter').value = this.data.filter;
+                UI.filterCharts(this.data.filter, false);
+                document.getElementById('interval-select').value = this.data.simRate;
+                Sim.updateRate(this.data.simRate, false);
+            }
+        };
+
         const Monitor = {
             charts: {},
             state: { categories: Array(CONFIG.HISTORY_LEN).fill('') },
@@ -129,6 +139,8 @@
                 this._initCPU();
                 this._initStats();
                 window.addEventListener('resize', () => Object.values(this.charts).forEach(c => c.resize()));
+                Settings.load();
+                Settings.apply();
             },
 
             push(data) {
@@ -165,8 +177,7 @@
                 const options = chart.getOption();
                 const seriesUpdate = values.map((val, idx) => {
                     const data = options.series[idx].data;
-                    data.shift();
-                    data.push(val);
+                    data.shift(); data.push(val);
                     return { data };
                 });
                 chart.setOption({ xAxis: { data: this.state.categories }, series: seriesUpdate });
@@ -211,29 +222,18 @@
                         max: s.readouts[0].max, 
                         axisLabel: { formatter: `{value}${s.readouts[0].unit}` } 
                     });
-                    
                     opt.series = s.readouts.map((r, idx) => ({
-                        name: r.label,
-                        type: 'line',
-                        showSymbol: false,
-                        smooth: s.id !== 'fps',
-                        step: s.id === 'fps' ? 'end' : false,
+                        name: r.label, type: 'line', showSymbol: false, smooth: s.id !== 'fps', step: s.id === 'fps' ? 'end' : false,
                         itemStyle: { color: CONFIG.THEME[s.id] ? (Array.isArray(CONFIG.THEME[s.id]) ? CONFIG.THEME[s.id][idx] : CONFIG.THEME[s.id]) : '#ccc' },
                         areaStyle: (s.id === 'power' || s.id === 'fps' || s.id === 'eff') ? { opacity: 0.05 } : null,
                         data: Array(CONFIG.HISTORY_LEN).fill(0)
                     }));
-                    
                     inst.setOption(opt);
                     this.charts[s.id] = inst;
                 });
             }
         };
 
-        /**
-         * ==========================================
-         * 3. UI CONTROLLER
-         * ==========================================
-         */
         const UI = {
             renderCards() {
                 const topGrid = document.getElementById('grid-top');
@@ -241,7 +241,7 @@
 
                 CONFIG.CLUSTERS.forEach(c => {
                     topGrid.innerHTML += `
-                    <div class="chart-card bg-white p-5 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group" data-title="${c.name}">
+                    <div class="chart-card bg-white p-5 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group" data-title="${c.name} ${c.keywords}">
                         <button onclick="UI.toggleExpand(this, '${c.id}')" class="toggle-btn absolute top-12 right-4 p-1 rounded-md hover:bg-gray-100 text-gray-400 z-20"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg></button>
                         <div class="flex justify-between items-start mb-2">
                             <h2 class="text-sm font-bold uppercase tracking-wider" style="color: ${c.color}">${c.name}</h2>
@@ -256,7 +256,7 @@
 
                 CONFIG.STATS.forEach(s => {
                     bottomGrid.innerHTML += `
-                    <div class="chart-card bg-white p-6 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group" data-title="${s.title}">
+                    <div class="chart-card bg-white p-6 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group" data-title="${s.title} ${s.keywords}">
                         <button onclick="UI.toggleExpand(this, '${s.id}')" class="toggle-btn absolute top-12 right-4 p-1 rounded-md hover:bg-gray-100 text-gray-400 z-20"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg></button>
                         <div class="flex justify-between items-start mb-4">
                             <h2 class="text-lg font-semibold text-gray-700">${s.title}</h2>
@@ -274,38 +274,22 @@
                 });
             },
 
-            setLayout(mode) {
-                const gTop = document.getElementById('grid-top');
-                const gBottom = document.getElementById('grid-bottom');
-                const bGrid = document.getElementById('btn-grid');
-                const bList = document.getElementById('btn-list');
-
+            setLayout(mode, doSave = true) {
+                const gTop = document.getElementById('grid-top'), gBottom = document.getElementById('grid-bottom');
+                const bGrid = document.getElementById('btn-grid'), bList = document.getElementById('btn-list');
                 if (mode === 'grid') {
-                    // Set Top Grid
-                    gTop.classList.remove('grid-cols-1');
-                    gTop.classList.add('md:grid-cols-2', 'lg:grid-cols-3');
-                    // Set Bottom Grid
-                    gBottom.classList.remove('grid-cols-1');
-                    gBottom.classList.add('md:grid-cols-2');
-                    
+                    gTop.classList.remove('grid-cols-1'); gTop.classList.add('md:grid-cols-2', 'lg:grid-cols-3');
+                    gBottom.classList.remove('grid-cols-1'); gBottom.classList.add('md:grid-cols-2');
                     bGrid.className = 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm';
                     bList.className = 'px-4 py-1.5 text-sm font-bold text-gray-500';
                 } else {
-                    // Set both to 1 column
-                    gTop.classList.add('grid-cols-1');
-                    gTop.classList.remove('md:grid-cols-2', 'lg:grid-cols-3');
-                    gBottom.classList.add('grid-cols-1');
-                    gBottom.classList.remove('md:grid-cols-2');
-                    
+                    gTop.classList.add('grid-cols-1'); gTop.classList.remove('md:grid-cols-2', 'lg:grid-cols-3');
+                    gBottom.classList.add('grid-cols-1'); gBottom.classList.remove('md:grid-cols-2');
                     bList.className = 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm';
                     bGrid.className = 'px-4 py-1.5 text-sm font-bold text-gray-500';
                 }
-                
-                // Final fix: aggressive resize to force ECharts to recalculate widths 
-                // after the CSS grid has transitioned
-                setTimeout(() => {
-                    Object.values(Monitor.charts).forEach(c => c.resize());
-                }, 150);
+                if(doSave) { Settings.data.layout = mode; Settings.save(); }
+                setTimeout(() => Object.values(Monitor.charts).forEach(c => c.resize()), 150);
             },
 
             toggleExpand(btn, key) {
@@ -315,25 +299,25 @@
                 setTimeout(() => Monitor.charts[key].resize(), 300);
             },
 
-            filterCharts(val) {
-                const term = val.toLowerCase().trim();
+            filterCharts(val, doSave = true) {
+                const rawVal = val.toLowerCase().trim();
+                const keywords = rawVal.split('|').map(k => k.trim()).filter(k => k.length > 0);
                 document.querySelectorAll('.chart-card').forEach(c => {
-                    c.classList.toggle('hidden', !c.dataset.title.toLowerCase().includes(term));
+                    const searchable = c.dataset.title.toLowerCase();
+                    const matches = keywords.length === 0 || keywords.some(k => searchable.includes(k));
+                    c.classList.toggle('hidden', !matches);
                 });
+                if(doSave) { Settings.data.filter = val; Settings.save(); }
                 Object.values(Monitor.charts).forEach(c => c.resize());
             }
         };
 
-        /**
-         * ==========================================
-         * 4. SIMULATION
-         * ==========================================
-         */
         const Sim = {
             interval: null,
-            updateRate(ms) {
+            updateRate(ms, doSave = true) {
                 clearInterval(this.interval);
                 if (ms > 0) this.interval = setInterval(() => this.tick(), ms);
+                if(doSave) { Settings.data.simRate = ms; Settings.save(); }
             },
             tick() {
                 const load = (base) => Math.max(5, Math.min(95, base + (Math.random() - 0.5) * 40));
@@ -352,14 +336,12 @@
         };
 
         Monitor.init();
-        Sim.updateRate(1000);
 
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape') {
                 const exp = document.querySelector('.chart-card.expanded');
                 if (exp) {
                     const btn = exp.querySelector('button');
-                    // Find key from title since ids are dynamic now
                     const title = exp.dataset.title.toLowerCase();
                     const key = title.includes('big') ? 'big' : title.includes('mid') ? 'mid' : title.includes('little') ? 'little' : 
                                 title.includes('temp') ? 'temp' : title.includes('power') ? 'power' : title.includes('frame') ? 'fps' : 'eff';

@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
-        body { background-color: #f3f4f6; transition: background-color 0.3s; }
+        body { background-color: #f3f4f6; transition: background-color: 0.3s; }
         .chart-card { transition: all 0.2s ease-in-out; position: relative; }
         .chart-card.hidden { display: none; }
         .chart-container { height: 300px; transition: height 0.3s ease; }
@@ -23,16 +23,10 @@
         .toggle-btn { opacity: 0; transition: opacity 0.2s; }
         .chart-card:hover .toggle-btn { opacity: 1; }
 
-        /* Dynamic Grid Layouts */
-        .grid-layout { display: grid; gap: 1.5rem; }
-        .mode-grid.grid-top { grid-template-columns: repeat(1, 1fr); }
-        @media (min-width: 768px) { .mode-grid.grid-top { grid-template-columns: repeat(2, 1fr); } }
-        @media (min-width: 1024px) { .mode-grid.grid-top { grid-template-columns: repeat(3, 1fr); } }
-
-        .mode-grid.grid-bottom { grid-template-columns: repeat(1, 1fr); }
-        @media (min-width: 768px) { .mode-grid.grid-bottom { grid-template-columns: repeat(2, 1fr); } }
-        
         .cur-badge { font-family: ui-monospace, monospace; }
+        
+        /* Smooth grid transitions */
+        .grid-layout { display: grid; gap: 1.5rem; transition: all 0.3s ease; }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -67,15 +61,15 @@
             </div>
         </header>
 
-        <!-- Containers for dynamic generation -->
-        <div class="grid-layout mode-grid grid-top mb-6" id="grid-top"></div>
-        <div class="grid-layout mode-grid grid-bottom" id="grid-bottom"></div>
+        <!-- Use Tailwind Classes directly for grid control -->
+        <div class="grid-layout mb-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3" id="grid-top"></div>
+        <div class="grid-layout grid-cols-1 md:grid-cols-2" id="grid-bottom"></div>
     </div>
 
     <script>
         /**
          * ==========================================
-         * 1. CONFIGURATION (Source of Truth)
+         * 1. CONFIGURATION
          * ==========================================
          */
         const CONFIG = {
@@ -131,7 +125,7 @@
             state: { categories: Array(CONFIG.HISTORY_LEN).fill('') },
 
             init() {
-                UI.renderCards(); // Generate HTML first
+                UI.renderCards(); 
                 this._initCPU();
                 this._initStats();
                 window.addEventListener('resize', () => Object.values(this.charts).forEach(c => c.resize()));
@@ -141,19 +135,15 @@
                 this.state.categories.shift();
                 this.state.categories.push(data.timestamp);
 
-                // Update Clusters
                 CONFIG.CLUSTERS.forEach(c => {
                     const clusterData = data.cpu[c.id];
                     const avgL = Math.round(clusterData.reduce((s, x) => s + x.load, 0) / c.cores);
                     const avgF = clusterData.reduce((s, x) => s + x.freq, 0) / c.cores;
-                    
                     document.getElementById(`val-${c.id}-load-cur`).innerText = `${avgL}%`;
                     document.getElementById(`val-${c.id}-freq-cur`).innerText = `${avgF.toFixed(2)} GHz`;
-                    
                     this._updateChart(c.id, clusterData.flatMap(core => [core.load, core.freq]));
                 });
 
-                // Update Stats Readouts & Charts
                 document.getElementById('val-temp-pkg-cur').innerText = `${Math.round(data.temp.pkg)}°C`;
                 document.getElementById('val-temp-gpu-cur').innerText = `${Math.round(data.temp.gpu)}°C`;
                 document.getElementById('val-power-pkg-cur').innerText = `${Math.round(data.power.pkg)}W`;
@@ -172,7 +162,6 @@
             _updateChart(key, values) {
                 const chart = this.charts[key];
                 if (!chart || document.getElementById(`chart-${key}`).parentElement.classList.contains('hidden')) return;
-                
                 const options = chart.getOption();
                 const seriesUpdate = values.map((val, idx) => {
                     const data = options.series[idx].data;
@@ -220,7 +209,7 @@
                     const opt = this._baseOpt({ 
                         min: s.readouts[0].min, 
                         max: s.readouts[0].max, 
-                        axisLabel: { formatter: `{value}${s.readouts[0].unit.replace('°', '°')}` } 
+                        axisLabel: { formatter: `{value}${s.readouts[0].unit}` } 
                     });
                     
                     opt.series = s.readouts.map((r, idx) => ({
@@ -242,7 +231,7 @@
 
         /**
          * ==========================================
-         * 3. UI CONTROLLER (DOM Generation)
+         * 3. UI CONTROLLER
          * ==========================================
          */
         const UI = {
@@ -250,10 +239,9 @@
                 const topGrid = document.getElementById('grid-top');
                 const bottomGrid = document.getElementById('grid-bottom');
 
-                // Render Clusters
                 CONFIG.CLUSTERS.forEach(c => {
                     topGrid.innerHTML += `
-                    <div class="chart-card bg-white p-5 rounded-xl shadow-sm border border-gray-100 group" data-title="${c.name}">
+                    <div class="chart-card bg-white p-5 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group" data-title="${c.name}">
                         <button onclick="UI.toggleExpand(this, '${c.id}')" class="toggle-btn absolute top-12 right-4 p-1 rounded-md hover:bg-gray-100 text-gray-400 z-20"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg></button>
                         <div class="flex justify-between items-start mb-2">
                             <h2 class="text-sm font-bold uppercase tracking-wider" style="color: ${c.color}">${c.name}</h2>
@@ -266,10 +254,9 @@
                     </div>`;
                 });
 
-                // Render Stats
                 CONFIG.STATS.forEach(s => {
                     bottomGrid.innerHTML += `
-                    <div class="chart-card bg-white p-6 rounded-xl shadow-sm border border-gray-100 group" data-title="${s.title}">
+                    <div class="chart-card bg-white p-6 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group" data-title="${s.title}">
                         <button onclick="UI.toggleExpand(this, '${s.id}')" class="toggle-btn absolute top-12 right-4 p-1 rounded-md hover:bg-gray-100 text-gray-400 z-20"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg></button>
                         <div class="flex justify-between items-start mb-4">
                             <h2 class="text-lg font-semibold text-gray-700">${s.title}</h2>
@@ -288,11 +275,37 @@
             },
 
             setLayout(mode) {
-                const grids = [document.getElementById('grid-top'), document.getElementById('grid-bottom')];
-                grids.forEach(g => mode === 'grid' ? g.classList.add('mode-grid') : g.classList.remove('mode-grid'));
-                document.getElementById('btn-grid').className = mode === 'grid' ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm' : 'px-4 py-1.5 text-sm font-bold text-gray-500';
-                document.getElementById('btn-list').className = mode === 'list' ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm' : 'px-4 py-1.5 text-sm font-bold text-gray-500';
-                setTimeout(() => Object.values(Monitor.charts).forEach(c => c.resize()), 50);
+                const gTop = document.getElementById('grid-top');
+                const gBottom = document.getElementById('grid-bottom');
+                const bGrid = document.getElementById('btn-grid');
+                const bList = document.getElementById('btn-list');
+
+                if (mode === 'grid') {
+                    // Set Top Grid
+                    gTop.classList.remove('grid-cols-1');
+                    gTop.classList.add('md:grid-cols-2', 'lg:grid-cols-3');
+                    // Set Bottom Grid
+                    gBottom.classList.remove('grid-cols-1');
+                    gBottom.classList.add('md:grid-cols-2');
+                    
+                    bGrid.className = 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm';
+                    bList.className = 'px-4 py-1.5 text-sm font-bold text-gray-500';
+                } else {
+                    // Set both to 1 column
+                    gTop.classList.add('grid-cols-1');
+                    gTop.classList.remove('md:grid-cols-2', 'lg:grid-cols-3');
+                    gBottom.classList.add('grid-cols-1');
+                    gBottom.classList.remove('md:grid-cols-2');
+                    
+                    bList.className = 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm';
+                    bGrid.className = 'px-4 py-1.5 text-sm font-bold text-gray-500';
+                }
+                
+                // Final fix: aggressive resize to force ECharts to recalculate widths 
+                // after the CSS grid has transitioned
+                setTimeout(() => {
+                    Object.values(Monitor.charts).forEach(c => c.resize());
+                }, 150);
             },
 
             toggleExpand(btn, key) {
@@ -338,15 +351,20 @@
             }
         };
 
-        // Initialize Everything
         Monitor.init();
         Sim.updateRate(1000);
 
-        // Global Key Listener for Expansion Exit
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape') {
                 const exp = document.querySelector('.chart-card.expanded');
-                if (exp) UI.toggleExpand(exp.querySelector('button'), exp.dataset.title.toLowerCase().split(' ')[0]);
+                if (exp) {
+                    const btn = exp.querySelector('button');
+                    // Find key from title since ids are dynamic now
+                    const title = exp.dataset.title.toLowerCase();
+                    const key = title.includes('big') ? 'big' : title.includes('mid') ? 'mid' : title.includes('little') ? 'little' : 
+                                title.includes('temp') ? 'temp' : title.includes('power') ? 'power' : title.includes('frame') ? 'fps' : 'eff';
+                    UI.toggleExpand(btn, key);
+                }
             }
         });
     </script>

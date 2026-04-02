@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Monitor Dashboard</title>
+    <title>System Monitor Dashboard + AI Analyst</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
@@ -27,6 +27,13 @@
         
         /* Smooth grid transitions */
         .grid-layout { display: grid; gap: 1.5rem; transition: all 0.3s ease; }
+
+        /* AI Panel Animation */
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .ai-panel-active { animation: slideIn 0.3s ease-out forwards; }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -36,10 +43,18 @@
         <header class="mb-8 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-gray-800">Advanced System Monitor</h1>
-                <p class="text-gray-600">Telemetry Visualization Engine</p>
+                <div class="flex items-center gap-2">
+                    <p class="text-gray-600">Telemetry Visualization Engine</p>
+                    <span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full">✨ Gemini AI Powered</span>
+                </div>
             </div>
             
             <div class="flex flex-wrap items-center gap-3">
+                <!-- AI Analyst Action -->
+                <button onclick="AI.analyzeSystem()" class="px-5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 group">
+                    <span class="group-hover:animate-pulse">✨</span> Analyze Health
+                </button>
+
                 <!-- Layout Selection -->
                 <div class="flex bg-white rounded-lg shadow-sm border border-gray-100 p-1">
                     <button id="btn-grid" onclick="UI.setLayout('grid')" class="px-4 py-1.5 rounded-md text-sm font-bold transition-all bg-blue-600 text-white shadow-sm">Grid</button>
@@ -48,13 +63,12 @@
 
                 <!-- Live Search -->
                 <div class="relative">
-                    <input type="text" id="chart-filter" oninput="UI.filterCharts(this.value)" placeholder="Filter charts (e.g. CPU|TEMP)..." class="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 outline-none text-sm w-48 md:w-64">
+                    <input type="text" id="chart-filter" oninput="UI.filterCharts(this.value)" placeholder="Filter (e.g. CPU|TEMP)..." class="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 outline-none text-sm w-48 md:w-64">
                     <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 </div>
 
-                <!-- Simulation Speed -->
                 <div class="flex items-center gap-2 bg-white p-2 rounded-lg shadow-sm border border-gray-100">
-                    <span class="text-sm font-medium text-gray-500 ml-2">Sim Rate:</span>
+                    <span class="text-sm font-medium text-gray-500 ml-2">Rate:</span>
                     <select id="interval-select" onchange="Sim.updateRate(this.value)" class="text-sm border-none focus:ring-0 cursor-pointer font-bold text-blue-600 bg-transparent mr-2">
                         <option value="1000">1.0s</option>
                         <option value="500">0.5s</option>
@@ -62,22 +76,45 @@
                     </select>
                 </div>
 
-                <!-- Save Button (NEW) -->
                 <button id="btn-save" onclick="Settings.saveManual()" class="px-5 py-2 bg-gray-800 text-white text-sm font-bold rounded-lg shadow-sm hover:bg-gray-700 transition-colors flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
-                    Save Settings
+                    Save
                 </button>
             </div>
         </header>
+
+        <!-- AI Insights Banner (Conditional) -->
+        <div id="ai-report-container" class="hidden mb-8 bg-white border border-blue-200 rounded-2xl overflow-hidden shadow-sm ai-panel-active">
+            <div class="bg-blue-50 px-6 py-4 flex justify-between items-center border-b border-blue-100">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">✨</span>
+                    <h3 class="font-bold text-blue-900">Gemini System Insights</h3>
+                </div>
+                <button onclick="AI.closeReport()" class="text-blue-400 hover:text-blue-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div id="ai-report-content" class="p-6 text-gray-700 prose prose-blue max-w-none">
+                <div class="flex items-center gap-3 animate-pulse">
+                    <div class="h-4 w-4 bg-blue-400 rounded-full"></div>
+                    <p>Gemini is analyzing your system telemetry data...</p>
+                </div>
+            </div>
+        </div>
 
         <div class="grid-layout mb-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3" id="grid-top"></div>
         <div class="grid-layout grid-cols-1 md:grid-cols-2" id="grid-bottom"></div>
     </div>
 
     <script>
+        /**
+         * ==========================================
+         * 1. CONFIGURATION
+         * ==========================================
+         */
         const CONFIG = {
             STORAGE_KEY: 'sys_monitor_settings_manual',
-            HISTORY_LEN: 30,
+            HISTORY_LEN: 60,
             CLUSTERS: [
                 { id: 'big',    name: 'Big Cluster',    color: '#ef4444', cores: 2, maxGHz: 3.2, keywords: 'cpu processor cores' },
                 { id: 'mid',    name: 'Mid Cluster',    color: '#f59e0b', cores: 2, maxGHz: 2.4, keywords: 'cpu processor balanced' },
@@ -123,41 +160,128 @@
             }
         };
 
+        /**
+         * ==========================================
+         * 2. GEMINI AI MODULE ✨
+         * ==========================================
+         */
+        const AI = {
+            isAnalyzing: false,
+            apiKey: "", // Provided by environment
+
+            async analyzeSystem() {
+                if (this.isAnalyzing) return;
+                this.isAnalyzing = true;
+
+                const reportContainer = document.getElementById('ai-report-container');
+                const reportContent = document.getElementById('ai-report-content');
+                
+                reportContainer.classList.remove('hidden');
+                reportContent.innerHTML = `<div class="flex items-center gap-3"><div class="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div><p class="font-medium text-blue-800">Processing real-time telemetry with Gemini 2.5 Flash...</p></div>`;
+
+                // Scroll to analyst
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+
+                // Snapshot the current state
+                const snapshot = {
+                    averages: {
+                        big_cluster: document.getElementById('val-big-load-cur').innerText,
+                        mid_cluster: document.getElementById('val-mid-load-cur').innerText,
+                        temp_cpu: document.getElementById('val-temp-pkg-cur').innerText,
+                        power_pkg: document.getElementById('val-power-pkg-cur').innerText,
+                        fps: document.getElementById('val-fps-cur').innerText,
+                        efficiency: document.getElementById('val-eff-cur').innerText
+                    },
+                    trends: "Analyzing 30 historical data points for performance stability."
+                };
+
+                const prompt = `Analyze this system telemetry snapshot:
+                    - CPU Load: Big Cluster (${snapshot.averages.big_cluster}), Mid (${snapshot.averages.mid_cluster})
+                    - Temperature: CPU Package at ${snapshot.averages.temp_cpu}
+                    - Power: Package Power at ${snapshot.averages.power_pkg}
+                    - Graphics: Running at ${snapshot.averages.fps} FPS
+                    - Overall Efficiency: ${snapshot.averages.efficiency} FPS/W
+
+                    Identify if there is thermal throttling, power bottlenecks, or if the system is highly efficient. Give 3 short, punchy bullet points and a concluding recommendation. Format with clear Markdown.`;
+
+                try {
+                    const result = await this._callGemini(prompt);
+                    reportContent.innerHTML = this._parseMarkdown(result);
+                } catch (err) {
+                    reportContent.innerHTML = `<div class="p-3 bg-red-50 text-red-700 rounded-lg">Failed to contact AI Analyst. Please check connection and try again.</div>`;
+                } finally {
+                    this.isAnalyzing = false;
+                }
+            },
+
+            async _callGemini(userQuery, retries = 5) {
+                const systemPrompt = "You are a senior systems performance architect. Your goal is to analyze telemetry data and provide extremely technical yet concise insights. Use professional, clinical language. Do not use conversational filler.";
+                
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${this.apiKey}`;
+                const payload = {
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] }
+                };
+
+                for (let i = 0; i < retries; i++) {
+                    try {
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        const result = await response.json();
+                        return result.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
+                    } catch (err) {
+                        if (i === retries - 1) throw err;
+                        await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000));
+                    }
+                }
+            },
+
+            _parseMarkdown(text) {
+                // Extremely simple MD parser for the purpose of the dashboard
+                return text
+                    .replace(/^### (.*$)/gim, '<h4 class="font-bold text-gray-800 mt-4">$1</h4>')
+                    .replace(/^## (.*$)/gim, '<h3 class="font-bold text-gray-900 mt-4">$1</h3>')
+                    .replace(/^\- (.*$)/gim, '<li class="ml-4 list-disc text-gray-600">$1</li>')
+                    .replace(/\*\*(.*?)\*\*/g, '<b class="text-blue-700 font-bold">$1</b>')
+                    .replace(/\n/g, '<br>');
+            },
+
+            closeReport() {
+                document.getElementById('ai-report-container').classList.add('hidden');
+            }
+        };
+
+        /**
+         * ==========================================
+         * 3. SETTINGS ENGINE
+         * ==========================================
+         */
         const Settings = {
             data: { layout: 'grid', filter: '', simRate: '1000' },
-            
-            // Manual Save: Scans current UI state and persists it
             saveManual() {
-                // 1. Capture current status
                 this.data.layout = document.getElementById('grid-top').classList.contains('grid-cols-1') ? 'list' : 'grid';
                 this.data.filter = document.getElementById('chart-filter').value;
                 this.data.simRate = document.getElementById('interval-select').value;
-                
-                // 2. Persist
                 localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(this.data));
                 
-                // 3. Visual Feedback
                 const btn = document.getElementById('btn-save');
                 const originalContent = btn.innerHTML;
-                btn.innerHTML = `
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                    Settings Saved
-                `;
+                btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Saved`;
                 btn.classList.add('bg-green-600');
                 btn.classList.remove('bg-gray-800');
-                
                 setTimeout(() => {
                     btn.innerHTML = originalContent;
                     btn.classList.remove('bg-green-600');
                     btn.classList.add('bg-gray-800');
                 }, 2000);
             },
-
             load() {
                 const stored = localStorage.getItem(CONFIG.STORAGE_KEY);
                 if (stored) { try { this.data = { ...this.data, ...JSON.parse(stored) }; } catch (e) {} }
             },
-
             apply() {
                 UI.setLayout(this.data.layout);
                 document.getElementById('chart-filter').value = this.data.filter;
@@ -167,6 +291,11 @@
             }
         };
 
+        /**
+         * ==========================================
+         * 4. MONITOR ENGINE
+         * ==========================================
+         */
         const Monitor = {
             charts: {},
             state: { categories: Array(CONFIG.HISTORY_LEN).fill('') },

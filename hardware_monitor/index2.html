@@ -35,7 +35,7 @@
 
         .grid-layout-bottom { display: grid; gap: 1.5rem; grid-template-columns: 1fr; }
         @media (min-width: 768px) { .grid-layout-bottom.mode-grid { grid-template-columns: repeat(2, 1fr); } }
-        @media (min-width: 1280px) { .grid-layout-bottom.mode-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (min-width: 1280px) { .grid-layout-bottom.mode-grid { grid-template-columns: repeat(2, 1fr); } } 
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -44,7 +44,7 @@
         <!-- HEADER -->
         <header class="mb-8 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
             <div>
-                <h1 class="text-3xl font-bold text-gray-800">System Performance Monitor</h1>
+                <h1 class="text-3xl font-bold text-gray-800">Advanced System Monitor</h1>
                 <p class="text-gray-600">Integratable Telemetry Dashboard</p>
             </div>
             
@@ -99,7 +99,7 @@
         </div>
 
         <!-- BOTTOM ROW: SYSTEM STATS -->
-        <div class="grid-layout-bottom mode-grid" id="charts-grid-bottom">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6" id="charts-grid-bottom">
             <div class="chart-card bg-white p-6 rounded-xl shadow-sm border border-gray-100 group" data-title="SoC Temperatures" id="card-temp">
                 <button onclick="toggleExpand('card-temp', 'temp')" class="toggle-btn absolute top-4 right-4 p-1 rounded-md hover:bg-gray-100 text-gray-400 z-20"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg></button>
                 <h2 class="text-lg font-semibold text-gray-700 mb-4">Temperatures (°C)</h2>
@@ -112,8 +112,24 @@
             </div>
             <div class="chart-card bg-white p-6 rounded-xl shadow-sm border border-gray-100 group" data-title="Frame Rate" id="card-fps">
                 <button onclick="toggleExpand('card-fps', 'fps')" class="toggle-btn absolute top-4 right-4 p-1 rounded-md hover:bg-gray-100 text-gray-400 z-20"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg></button>
-                <h2 class="text-lg font-semibold text-gray-700 mb-4">Frame Rate (FPS)</h2>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-gray-700">Frame Rate (FPS)</h2>
+                    <div id="fps-current-avg" class="text-xs font-mono text-gray-500">
+                        CUR: <span id="val-fps-cur" class="text-blue-600 font-bold">0</span>
+                    </div>
+                </div>
                 <div id="fps-chart" class="main-chart-container w-full"></div>
+            </div>
+            <!-- Efficiency Chart -->
+            <div class="chart-card bg-white p-6 rounded-xl shadow-sm border border-gray-100 group border-blue-100" data-title="Efficiency FPS per Watt" id="card-eff">
+                <button onclick="toggleExpand('card-eff', 'eff')" class="toggle-btn absolute top-4 right-4 p-1 rounded-md hover:bg-gray-100 text-gray-400 z-20"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg></button>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-gray-700">Efficiency (FPS/W)</h2>
+                    <div class="text-xs font-mono text-gray-500">
+                        CUR: <span id="val-eff-cur" class="text-emerald-600 font-bold">0.00</span>
+                    </div>
+                </div>
+                <div id="eff-chart" class="main-chart-container w-full"></div>
             </div>
         </div>
     </div>
@@ -129,8 +145,13 @@
             mid: { count: 2, color: '#f59e0b', label: 'Mid Core' },
             little: { count: 4, color: '#10b981', label: 'Little Core' }
         };
-        const MAX_HISTORY = 30; // Number of points to show on X-axis
-        const THEME_COLORS = { temp: ['#f97316', '#8b5cf6'], power: ['#ec4899', '#06b6d4'], fps: '#8b5cf6' };
+        const MAX_HISTORY = 30; 
+        const THEME_COLORS = { 
+            temp: ['#f97316', '#8b5cf6'], 
+            power: ['#ec4899', '#06b6d4'], 
+            fps: '#3b82f6',
+            eff: '#10b981'
+        };
 
         /**
          * ==========================================
@@ -146,7 +167,8 @@
             },
             temp: { cpu: Array(MAX_HISTORY).fill(0), gpu: Array(MAX_HISTORY).fill(0) },
             power: { pkg: Array(MAX_HISTORY).fill(0), dram: Array(MAX_HISTORY).fill(0) },
-            fps: Array(MAX_HISTORY).fill(0)
+            fps: Array(MAX_HISTORY).fill(0),
+            eff: Array(MAX_HISTORY).fill(0)
         };
 
         /**
@@ -156,16 +178,21 @@
          */
         const charts = {};
         function initCharts() {
-            // Helper for shared axis config
             const baseOpt = (yLabel, yMin, yMax) => ({
                 animation: false,
                 tooltip: { trigger: 'axis', axisPointer: { animation: false } },
                 grid: { top: 15, left: 40, right: 10, bottom: 25 },
-                xAxis: { type: 'category', data: state.categories, boundaryGap: false, axisLabel: { show: false } },
+                xAxis: { 
+                    type: 'category', 
+                    data: state.categories, 
+                    boundaryGap: false, 
+                    axisLabel: { show: false },
+                    axisTick: { show: false },
+                    axisLine: { show: false }
+                },
                 yAxis: { type: 'value', min: yMin, max: yMax, splitLine: { lineStyle: { type: 'dashed', color: '#f3f4f6' } }, axisLabel: { fontSize: 10, formatter: yLabel } }
             });
 
-            // CPU Clusters
             Object.keys(CLUSTERS).forEach(key => {
                 charts[key] = echarts.init(document.getElementById(`cpu-${key}-chart`));
                 const series = [];
@@ -176,36 +203,63 @@
                 charts[key].setOption({ ...baseOpt('{value}%', 0, 100), series });
             });
 
-            // System Stats
             charts.temp = echarts.init(document.getElementById('temp-chart'));
-            charts.temp.setOption({ ...baseOpt('{value}°', 30, 100), series: [{ name: 'CPU', type: 'line', smooth: true, itemStyle: { color: THEME_COLORS.temp[0] }, data: state.temp.cpu }, { name: 'GPU', type: 'line', smooth: true, itemStyle: { color: THEME_COLORS.temp[1] }, data: state.temp.gpu }] });
+            charts.temp.setOption({ 
+                ...baseOpt('{value}°', 30, 100), 
+                series: [
+                    { name: 'CPU', type: 'line', showSymbol: false, smooth: true, itemStyle: { color: THEME_COLORS.temp[0] }, data: state.temp.cpu }, 
+                    { name: 'GPU', type: 'line', showSymbol: false, smooth: true, itemStyle: { color: THEME_COLORS.temp[1] }, data: state.temp.gpu }
+                ] 
+            });
 
             charts.power = echarts.init(document.getElementById('power-chart'));
-            charts.power.setOption({ ...baseOpt('{value}W', 0, 120), series: [{ name: 'Pkg', type: 'line', smooth: true, areaStyle: { opacity: 0.05 }, itemStyle: { color: THEME_COLORS.power[0] }, data: state.power.pkg }, { name: 'DRAM', type: 'line', smooth: true, areaStyle: { opacity: 0.05 }, itemStyle: { color: THEME_COLORS.power[1] }, data: state.power.dram }] });
+            charts.power.setOption({ 
+                ...baseOpt('{value}W', 0, 120), 
+                series: [
+                    { name: 'Pkg', type: 'line', showSymbol: false, smooth: true, areaStyle: { opacity: 0.05 }, itemStyle: { color: THEME_COLORS.power[0] }, data: state.power.pkg }, 
+                    { name: 'DRAM', type: 'line', showSymbol: false, smooth: true, areaStyle: { opacity: 0.05 }, itemStyle: { color: THEME_COLORS.power[1] }, data: state.power.dram }
+                ] 
+            });
 
             charts.fps = echarts.init(document.getElementById('fps-chart'));
-            charts.fps.setOption({ ...baseOpt('{value}', 0, 144), series: [{ name: 'FPS', type: 'line', step: 'end', lineStyle: { color: THEME_COLORS.fps }, areaStyle: { color: THEME_COLORS.fps, opacity: 0.1 }, data: state.fps }] });
+            charts.fps.setOption({ 
+                ...baseOpt('{value}', 0, 144), 
+                series: [{ 
+                    name: 'Current FPS', 
+                    type: 'line', 
+                    showSymbol: false,
+                    step: 'end', 
+                    lineStyle: { color: THEME_COLORS.fps, width: 2 }, 
+                    areaStyle: { color: THEME_COLORS.fps, opacity: 0.1 }, 
+                    data: state.fps
+                }] 
+            });
+
+            charts.eff = echarts.init(document.getElementById('eff-chart'));
+            charts.eff.setOption({ 
+                ...baseOpt('{value}', 0, 10), 
+                series: [{ 
+                    name: 'FPS per Watt', 
+                    type: 'line', 
+                    showSymbol: false,
+                    smooth: true,
+                    lineStyle: { color: THEME_COLORS.eff, width: 2 }, 
+                    areaStyle: { color: THEME_COLORS.eff, opacity: 0.1 }, 
+                    data: state.eff
+                }] 
+            });
         }
 
         /**
          * ==========================================
-         * 4. PUBLIC INTEGRATION API (Call this from your script!)
+         * 4. PUBLIC INTEGRATION API
          * ==========================================
-         * @param {Object} data - Expected structure:
-         * {
-         * timestamp: "14:20:01",
-         * cpu: { big: [{load: 20, freq: 40}, ...], mid: [...], little: [...] },
-         * temp: { cpu: 45, gpu: 42 },
-         * power: { pkg: 12.5, dram: 4.1 },
-         * fps: 60
-         * }
          */
         function updateSystemMonitor(data) {
-            // Update X-Axis
             state.categories.shift();
             state.categories.push(data.timestamp);
+            const sync = { xAxis: { data: state.categories } };
 
-            // Update CPU Data
             Object.keys(CLUSTERS).forEach(key => {
                 const clusterUpdate = [];
                 data.cpu[key].forEach((core, i) => {
@@ -213,19 +267,30 @@
                     state.cpu[key][i].freq.shift(); state.cpu[key][i].freq.push(core.freq);
                     clusterUpdate.push({ data: state.cpu[key][i].load }, { data: state.cpu[key][i].freq });
                 });
-                if (!isChartHidden(`card-${key}`)) charts[key].setOption({ xAxis: { data: state.categories }, series: clusterUpdate });
+                if (!isChartHidden(`card-${key}`)) charts[key].setOption({ ...sync, series: clusterUpdate });
             });
 
-            // Update System Stats
             const updateStat = (stateArr, newVal) => { stateArr.shift(); stateArr.push(newVal); };
             updateStat(state.temp.cpu, data.temp.cpu); updateStat(state.temp.gpu, data.temp.gpu);
             updateStat(state.power.pkg, data.power.pkg); updateStat(state.power.dram, data.power.dram);
             updateStat(state.fps, data.fps);
 
-            const sync = { xAxis: { data: state.categories } };
+            // Calculate Efficiency (FPS/W)
+            const effVal = data.power.pkg > 0 ? (data.fps / data.power.pkg) : 0;
+            updateStat(state.eff, parseFloat(effVal.toFixed(2)));
+
             if (!isChartHidden('card-temp')) charts.temp.setOption({ ...sync, series: [{ data: state.temp.cpu }, { data: state.temp.gpu }] });
             if (!isChartHidden('card-power')) charts.power.setOption({ ...sync, series: [{ data: state.power.pkg }, { data: state.power.dram }] });
-            if (!isChartHidden('card-fps')) charts.fps.setOption({ ...sync, series: [{ data: state.fps }] });
+            
+            if (!isChartHidden('card-fps')) {
+                document.getElementById('val-fps-cur').innerText = Math.round(data.fps);
+                charts.fps.setOption({ ...sync, series: [{ data: state.fps }] });
+            }
+
+            if (!isChartHidden('card-eff')) {
+                document.getElementById('val-eff-cur').innerText = effVal.toFixed(2);
+                charts.eff.setOption({ ...sync, series: [{ data: state.eff }] });
+            }
         }
 
         /**
@@ -239,11 +304,21 @@
         function setLayout(mode) {
             const grids = [document.getElementById('charts-grid-top'), document.getElementById('charts-grid-bottom')];
             const btns = { grid: document.getElementById('btn-grid'), list: document.getElementById('btn-list') };
-            
-            grids.forEach(g => mode === 'grid' ? g.classList.add('mode-grid') : g.classList.remove('mode-grid'));
+            grids.forEach(g => {
+                if(mode === 'grid') {
+                    g.classList.add('mode-grid');
+                    if(g.id === 'charts-grid-bottom') {
+                        g.className = "grid-layout-bottom mode-grid";
+                    }
+                } else {
+                    g.classList.remove('mode-grid');
+                    if(g.id === 'charts-grid-bottom') {
+                        g.className = "grid-layout-bottom";
+                    }
+                }
+            });
             btns.grid.className = mode === 'grid' ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm' : 'px-4 py-1.5 text-sm font-bold text-gray-500';
             btns.list.className = mode === 'list' ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm' : 'px-4 py-1.5 text-sm font-bold text-gray-500';
-            
             setTimeout(() => Object.values(charts).forEach(c => c.resize()), 50);
         }
 
@@ -254,7 +329,6 @@
             setTimeout(() => charts[chartKey].resize(), 310);
         }
 
-        // Filter Logic
         document.getElementById('chart-filter').addEventListener('input', (e) => {
             const term = e.target.value.toLowerCase().trim();
             document.querySelectorAll('.chart-card').forEach(card => {
@@ -268,7 +342,7 @@
 
         /**
          * ==========================================
-         * 6. DEMO SIMULATION (Remove this part in production)
+         * 6. DEMO SIMULATION
          * ==========================================
          */
         let demoInterval = null;
@@ -293,10 +367,8 @@
             if (val > 0) demoInterval = setInterval(runDemo, val);
         });
 
-        // Start
         initCharts();
         demoInterval = setInterval(runDemo, 1000);
-
     </script>
 </body>
 </html>

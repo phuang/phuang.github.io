@@ -42,9 +42,13 @@
         <!-- Dashboard Header -->
         <header class="mb-8 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
             <div>
-                <h1 class="text-3xl font-bold text-gray-800">Advanced System Monitor</h1>
-                <div class="flex items-center gap-2">
-                    <p class="text-gray-600">Telemetry Visualization Engine</p>
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">Advanced System Monitor</h1>
+                <div class="flex items-center gap-3">
+                    <!-- Device Badge (Moved here as the new subtitle) -->
+                    <span id="device-id" class="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-bold bg-gray-800 text-white border border-gray-700 shadow-sm font-mono">
+                        <svg class="w-3.5 h-3.5 mr-1.5 text-green-400" fill="currentColor" viewBox="0 0 24 24"><path d="M7 11h2v2H7v-2m14-5v12c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2h14c1.1 0 2 .9 2 2m-2 0H5v12h14V6m-9 7V9H7v4h3m4 0v-4h-3v4h3m2-11h-4v2h4V2z"/></svg>
+                        <span id="device-name-text">Initializing...</span>
+                    </span>
                     <span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full">✨ Gemini AI Powered</span>
                 </div>
             </div>
@@ -113,7 +117,8 @@
          * ==========================================
          */
         const CONFIG = {
-            STORAGE_KEY: 'sys_monitor_settings_manual',
+            DEVICE_NAME: "Android Pixel 8 Pro", 
+            STORAGE_KEY: 'sys_monitor_settings_manual_v2',
             HISTORY_LEN: 60,
             
             // Visual Config Defaults
@@ -167,7 +172,7 @@
          */
         const AI = {
             isAnalyzing: false,
-            apiKey: "", // Provided by environment
+            apiKey: "", 
 
             async analyzeSystem() {
                 if (this.isAnalyzing) return;
@@ -179,11 +184,10 @@
                 reportContainer.classList.remove('hidden');
                 reportContent.innerHTML = `<div class="flex items-center gap-3"><div class="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div><p class="font-medium text-blue-800">Processing real-time telemetry with Gemini 2.5 Flash...</p></div>`;
 
-                // Scroll to analyst
                 window.scrollTo({ top: 0, behavior: 'smooth' });
 
-                // Snapshot the current state
                 const snapshot = {
+                    device: document.getElementById('device-name-text').innerText,
                     averages: {
                         big_cluster: document.getElementById('val-big-load-cur').innerText,
                         mid_cluster: document.getElementById('val-mid-load-cur').innerText,
@@ -191,11 +195,10 @@
                         power_pkg: document.getElementById('val-power-pkg-cur').innerText,
                         fps: document.getElementById('val-fps-cur').innerText,
                         efficiency: document.getElementById('val-eff-cur').innerText
-                    },
-                    trends: "Analyzing historical data points for performance stability."
+                    }
                 };
 
-                const prompt = `Analyze this system telemetry snapshot:
+                const prompt = `Analyze this system telemetry snapshot for device: ${snapshot.device}:
                     - CPU Load: Big Cluster (${snapshot.averages.big_cluster}), Mid (${snapshot.averages.mid_cluster})
                     - Temperature: CPU Package at ${snapshot.averages.temp_cpu}
                     - Power: Package Power at ${snapshot.averages.power_pkg}
@@ -216,7 +219,6 @@
 
             async _callGemini(userQuery, retries = 5) {
                 const systemPrompt = "You are a senior systems performance architect. Your goal is to analyze telemetry data and provide extremely technical yet concise insights. Use professional, clinical language. Do not use conversational filler.";
-                
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${this.apiKey}`;
                 const payload = {
                     contents: [{ parts: [{ text: userQuery }] }],
@@ -306,6 +308,12 @@
                 window.addEventListener('resize', () => Object.values(this.charts).forEach(c => c.resize()));
                 Settings.load();
                 Settings.apply();
+                
+                this.setDevice(CONFIG.DEVICE_NAME);
+            },
+
+            setDevice(name) {
+                document.getElementById('device-name-text').innerText = name || "Unknown Device";
             },
 
             push(data) {
@@ -378,7 +386,6 @@
                                 lineStyle: { width: 2, color: c.color }, 
                                 data: Array(CONFIG.HISTORY_LEN).fill(0), 
                                 yAxisIndex: 0,
-                                // Formatting tooltip to xx.xx%
                                 tooltip: { valueFormatter: (val) => val.toFixed(2) + '%' }
                             },
                             { 
@@ -415,7 +422,6 @@
                         areaStyle: r.hasArea ? { opacity: CONFIG.AREA_OPACITY } : null,
                         data: Array(CONFIG.HISTORY_LEN).fill(0),
                         tooltip: { 
-                            // Using fixed precision for stats popups as well
                             valueFormatter: (val) => val.toFixed(2) + (r.unit || '')
                         }
                     }));

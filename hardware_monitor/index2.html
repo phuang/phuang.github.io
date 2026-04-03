@@ -95,7 +95,7 @@
          * ==========================================
          */
         const CORES = { BIG: 1, MID: 4, LITTLE: 2 };
-        const HISTORY_LIMIT = 60; // Datapoints to keep on X-axis
+        const HISTORY_LIMIT = 60; 
 
         /**
          * ==========================================
@@ -160,6 +160,9 @@
                 UI.buildCards();
                 this._setupCharts();
                 window.addEventListener('resize', () => Object.values(this.instances).forEach(i => i.resize()));
+                
+                setTimeout(() => Object.values(this.instances).forEach(i => i.resize()), 100);
+                
                 this.updateRate(1000);
             },
 
@@ -184,7 +187,6 @@
                 this.timeline.shift();
                 this.timeline.push(now);
 
-                // Mock Telemetry Generator
                 const rand = (min, range) => min + Math.random() * range;
                 const cpuLoad = (base) => Math.max(5, Math.min(95, base + (Math.random() - 0.5) * 40));
 
@@ -203,25 +205,27 @@
             },
 
             _updateUI(data) {
-                // 1. Update numeric badges
                 CONFIG.CLUSTERS.forEach(c => {
                     const metrics = data.cpu[c.id];
                     const avgL = Math.round(metrics.reduce((s, x) => s + x.load, 0) / c.cores);
                     const avgF = (metrics.reduce((s, x) => s + x.freq, 0) / c.cores).toFixed(2);
-                    document.getElementById(`val-${c.id}-load`).innerText = `${avgL}%`;
-                    document.getElementById(`val-${c.id}-freq`).innerText = `${avgF} GHz`;
+                    const loadEl = document.getElementById(`val-${c.id}-load`);
+                    const freqEl = document.getElementById(`val-${c.id}-freq`);
+                    if (loadEl) loadEl.innerText = `${avgL}%`;
+                    if (freqEl) freqEl.innerText = `${avgF} GHz`;
                     this._pushChartData(c.id, metrics.flatMap(m => [m.load, m.freq]));
                 });
 
                 const eff = data.power.pkg > 0 ? (data.fps / data.power.pkg) : 0;
-                document.getElementById('val-temp-pkg-cur').innerText = `${Math.round(data.temp.pkg)}°C`;
-                document.getElementById('val-temp-gpu-cur').innerText = `${Math.round(data.temp.gpu)}°C`;
-                document.getElementById('val-power-pkg-cur').innerText = `${Math.round(data.power.pkg)}mW`;
-                document.getElementById('val-power-dram-cur').innerText = `${Math.round(data.power.dram)}mW`;
-                document.getElementById('val-fps-cur').innerText = Math.round(data.fps);
-                document.getElementById('val-eff-cur').innerText = eff.toFixed(4);
+                const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+                
+                setVal('val-temp-pkg-cur', `${Math.round(data.temp.pkg)}°C`);
+                setVal('val-temp-gpu-cur', `${Math.round(data.temp.gpu)}°C`);
+                setVal('val-power-pkg-cur', `${Math.round(data.power.pkg)}mW`);
+                setVal('val-power-dram-cur', `${Math.round(data.power.dram)}mW`);
+                setVal('val-fps-cur', Math.round(data.fps));
+                setVal('val-eff-cur', eff.toFixed(2));
 
-                // 2. Update Charts
                 this._pushChartData('temp', [data.temp.pkg, data.temp.gpu]);
                 this._pushChartData('power', [data.power.pkg, data.power.dram]);
                 this._pushChartData('fps', [data.fps]);
@@ -246,7 +250,6 @@
             },
 
             _setupCharts() {
-                // Initialize CPU Cluster charts
                 CONFIG.CLUSTERS.forEach(c => {
                     const el = document.getElementById(`chart-${c.id}`);
                     const inst = echarts.init(el);
@@ -258,16 +261,16 @@
                         );
                     }
                     inst.setOption(this._getSharedOptions({ 
+                        grid: { top: 30, left: 10, right: 10, bottom: 10, containLabel: true },
                         yAxis: [
                             { type: 'value', min: 0, max: 100, axisLabel: { formatter: '{value}%' } },
-                            { type: 'value', min: 0, max: c.maxGHz, axisLabel: { formatter: '{value}G' }, splitLine: { show: false } }
+                            { type: 'value', min: 0, max: c.maxGHz, axisLabel: { formatter: (value) => value.toFixed(1) }, splitLine: { show: false } }
                         ],
                         series 
                     }));
                     this.instances[c.id] = inst;
                 });
 
-                // Initialize Stat charts
                 CONFIG.STATS.forEach(s => {
                     const el = document.getElementById(`chart-${s.id}`);
                     const inst = echarts.init(el);
@@ -275,7 +278,8 @@
                         yAxis: { scale: true, axisLabel: { formatter: `{value}${s.readouts[0].unit}` } },
                         series: s.readouts.map(r => ({
                             name: r.label, type: 'line', showSymbol: false, smooth: true, itemStyle: { color: r.color }, 
-                            areaStyle: r.area ? { opacity: 0.05 } : null, data: Array(HISTORY_LIMIT).fill(0)
+                            areaStyle: r.area ? { opacity: 0.05 } : null, data: Array(HISTORY_LIMIT).fill(0),
+                            tooltip: { valueFormatter: (val) => val.toFixed(2) + (r.unit || '') }
                         }))
                     }));
                     this.instances[s.id] = inst;
@@ -286,7 +290,7 @@
                 return {
                     animation: false,
                     tooltip: { trigger: 'axis', axisPointer: { animation: false } },
-                    grid: { top: 30, left: 10, right: 15, bottom: 10, containLabel: true },
+                    grid: { top: 30, left: 10, right: 10, bottom: 10, containLabel: true },
                     xAxis: { type: 'category', data: this.timeline, boundaryGap: false, axisLabel: { show: false }, axisTick: { show: false }, axisLine: { show: false } },
                     yAxis: { splitLine: { lineStyle: { type: 'dashed', color: '#e5e7eb' } }, axisLabel: { fontSize: 10 } },
                     ...ext
@@ -318,7 +322,11 @@
                                 <div class="flex items-center gap-3">
                                     <div class="flex gap-3 text-right">
                                         <div><span class="${Theme.styles.statLabel}">Avg Load</span><div id="val-${c.id}-load" class="font-mono-stat text-xs font-bold" style="color: ${c.color}">--%</div></div>
-                                        <div class="border-l border-gray-100 pl-3"><span class="${Theme.styles.statLabel}">Avg Freq</span><div id="val-${c.id}-freq" class="font-mono-stat text-xs font-bold opacity-80" style="color: ${c.color}">-- GHz</div></div>
+                                        <div class="border-l border-gray-100 pl-3">
+                                            <span class="${Theme.styles.statLabel}">Avg Freq</span>
+                                            <!-- Styled with matching background to indicate the "Filled Area" data series -->
+                                            <div id="val-${c.id}-freq" class="font-mono-stat text-[10px] px-1.5 py-0.5 mt-0.5 rounded font-bold" style="color: ${c.color}; background-color: ${c.color}15">-- GHz</div>
+                                        </div>
                                     </div>
                                     <button onclick="UI.toggleExpand(this, '${c.id}')" class="toggle-btn p-1 rounded-md hover:bg-gray-100 text-gray-400">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
@@ -356,6 +364,7 @@
                 const isGrid = mode === 'grid';
                 ['area-cpu', 'area-stats'].forEach(id => {
                     const el = document.getElementById(id);
+                    if (!el) return;
                     el.classList.toggle('grid-cols-1', !isGrid);
                     if (id === 'area-cpu') {
                         el.classList.toggle('md:grid-cols-2', isGrid);
@@ -365,8 +374,10 @@
                     }
                 });
                 
-                document.getElementById('btn-grid').className = isGrid ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white' : 'px-4 py-1.5 text-sm font-bold text-gray-500';
-                document.getElementById('btn-list').className = !isGrid ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white' : 'px-4 py-1.5 text-sm font-bold text-gray-500';
+                const gridBtn = document.getElementById('btn-grid');
+                const listBtn = document.getElementById('btn-list');
+                if (gridBtn) gridBtn.className = isGrid ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white' : 'px-4 py-1.5 text-sm font-bold text-gray-500';
+                if (listBtn) listBtn.className = !isGrid ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white' : 'px-4 py-1.5 text-sm font-bold text-gray-500';
                 
                 setTimeout(() => Object.values(Monitor.instances).forEach(i => i.resize()), 150);
             },
@@ -388,14 +399,16 @@
             }
         };
 
-        // Bootstrap
         Monitor.init();
 
-        // Global Keybindings
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape') {
                 const expanded = document.querySelector('.chart-card.expanded');
-                if (expanded) UI.toggleExpand(expanded.querySelector('.toggle-btn'));
+                if (expanded) {
+                    const btn = expanded.querySelector('.toggle-btn');
+                    const key = Object.keys(Monitor.instances).find(k => expanded.querySelector(`#chart-${k}`)) || 'fps';
+                    UI.toggleExpand(btn, key);
+                }
             }
         });
     </script>

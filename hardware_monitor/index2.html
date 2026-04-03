@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Monitor Dashboard + AI Analyst</title>
+    <title>System Monitor Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
@@ -16,6 +16,8 @@
         .chart-card { 
             transition: all 0.2s ease-in-out; 
             position: relative; 
+            /* Enforce a minimum width to prevent header text and metrics from wrapping */
+            min-width: 400px;
         }
 
         .chart-card.hidden { display: none; }
@@ -37,6 +39,7 @@
             border-radius: 0; 
             padding: 2rem; 
             background: white;
+            min-width: auto; /* Allow full screen to ignore card min-width */
         }
 
         .chart-card.expanded .chart-container { 
@@ -45,9 +48,10 @@
 
         body.modal-open { overflow: hidden; }
         
+        /* Expansion Button styling */
         .toggle-btn { 
             opacity: 0; 
-            transition: opacity 0.2s; 
+            transition: all 0.2s; 
         }
 
         .chart-card:hover .toggle-btn { opacity: 1; }
@@ -60,14 +64,6 @@
             gap: 1.5rem; 
             transition: all 0.3s ease; 
         }
-
-        /* --- AI Panel Styles --- */
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        .ai-panel-active { animation: slideIn 0.3s ease-out forwards; }
         
         /* --- Tracing Status Indicators --- */
         #device-id { transition: all 0.2s ease; }
@@ -81,41 +77,26 @@
     <div class="max-w-7xl mx-auto">
         <!-- Dashboard Header -->
         <header class="mb-8 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-            <div>
-                <h1 class="text-3xl font-bold text-gray-800 mb-2">Advanced System Monitor</h1>
-                <div class="flex items-center gap-3">
-                    <!-- Device Badge (Clickable Toggle) -->
-                    <button id="device-id" onclick="Monitor.toggleTracing()" class="tracing-active inline-flex items-center px-3 py-1.5 rounded-md text-sm font-bold bg-gray-800 text-white border border-gray-700 shadow-sm font-mono hover:bg-gray-700 active:scale-95 transition-all outline-none focus:ring-2 focus:ring-blue-500">
-                        <svg class="status-dot w-3.5 h-3.5 mr-2 transition-colors duration-300" fill="currentColor" viewBox="0 0 24 24">
-                            <circle cx="12" cy="12" r="8"/>
-                        </svg>
-                        <span id="device-name-text">Initializing...</span>
-                        <span id="tracing-status" class="ml-2 text-[10px] uppercase opacity-50 tracking-tighter">(Live)</span>
-                    </button>
-                    <span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full">✨ Gemini AI Powered</span>
-                </div>
+            <div class="flex-shrink-0">
+                <h1 class="text-3xl font-bold text-gray-800">Advanced System Monitor</h1>
             </div>
             
-            <div class="flex flex-wrap items-center gap-3">
-                <!-- Primary Actions -->
-                <button onclick="AI.analyzeSystem()" class="px-5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 group">
-                    <span class="group-hover:animate-pulse">✨</span> Analyze Health
-                </button>
-
-                <!-- View & Search Controls -->
-                <div class="flex bg-white rounded-lg shadow-sm border border-gray-100 p-1">
+            <div class="flex flex-wrap items-center gap-3 flex-1">
+                <!-- View Controls -->
+                <div class="flex bg-white rounded-lg shadow-sm border border-gray-100 p-1 flex-shrink-0">
                     <button id="btn-grid" onclick="UI.setLayout('grid')" class="px-4 py-1.5 rounded-md text-sm font-bold transition-all bg-blue-600 text-white shadow-sm">Grid</button>
                     <button id="btn-list" onclick="UI.setLayout('list')" class="px-4 py-1.5 rounded-md text-sm font-bold transition-all text-gray-500 hover:text-gray-700">List</button>
                 </div>
 
-                <div class="relative">
-                    <input type="text" id="chart-filter" oninput="UI.filterCharts(this.value)" placeholder="Filter (e.g. CPU|TEMP)..." class="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 outline-none text-sm w-48 md:w-64">
+                <!-- Search Input -->
+                <div class="relative flex-1 min-w-[200px]">
+                    <input type="text" id="chart-filter" oninput="UI.filterCharts(this.value)" placeholder="Filter (e.g. CPU|TEMP)..." class="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 outline-none text-sm">
                     <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
                 </div>
 
-                <div class="flex items-center gap-2 bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+                <div class="flex items-center gap-2 bg-white p-2 rounded-lg shadow-sm border border-gray-100 flex-shrink-0">
                     <span class="text-sm font-medium text-gray-500 ml-2">Rate:</span>
                     <select id="interval-select" onchange="Sim.updateRate(this.value)" class="text-sm border-none focus:ring-0 cursor-pointer font-bold text-blue-600 bg-transparent mr-2">
                         <option value="1000">1.0s</option>
@@ -124,35 +105,23 @@
                     </select>
                 </div>
 
-                <button id="btn-save" onclick="Settings.saveManual()" class="px-5 py-2 bg-gray-800 text-white text-sm font-bold rounded-lg shadow-sm hover:bg-gray-700 transition-colors flex items-center gap-2">
+                <!-- Device Badge (Clickable Toggle) -->
+                <button id="device-id" onclick="Monitor.toggleTracing()" class="tracing-active inline-flex items-center px-3 py-1.5 rounded-md text-sm font-bold bg-gray-800 text-white border border-gray-700 shadow-sm font-mono hover:bg-gray-700 active:scale-95 transition-all outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0">
+                    <svg class="status-dot w-3.5 h-3.5 mr-2 transition-colors duration-300" fill="currentColor" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="8"/>
+                    </svg>
+                    <span id="device-name-text">Initializing...</span>
+                    <span id="tracing-status" class="ml-2 text-[10px] uppercase opacity-50 tracking-tighter">(Live)</span>
+                </button>
+
+                <button id="btn-save" onclick="Settings.saveManual()" class="px-5 py-2 bg-gray-800 text-white text-sm font-bold rounded-lg shadow-sm hover:bg-gray-700 transition-colors flex items-center gap-2 flex-shrink-0">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                     </svg>
                     Save
                 </button>
             </div>
         </header>
-
-        <!-- AI Insights Banner -->
-        <div id="ai-report-container" class="hidden mb-8 bg-white border border-blue-200 rounded-2xl overflow-hidden shadow-sm ai-panel-active">
-            <div class="bg-blue-50 px-6 py-4 flex justify-between items-center border-b border-blue-100">
-                <div class="flex items-center gap-2">
-                    <span class="text-xl">✨</span>
-                    <h3 class="font-bold text-blue-900">Gemini System Insights</h3>
-                </div>
-                <button onclick="AI.closeReport()" class="text-blue-400 hover:text-blue-600">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-            <div id="ai-report-content" class="p-6 text-gray-700 prose prose-blue max-w-none">
-                <div class="flex items-center gap-3 animate-pulse">
-                    <div class="h-4 w-4 bg-blue-400 rounded-full"></div>
-                    <p>Gemini is analyzing your system telemetry data...</p>
-                </div>
-            </div>
-        </div>
 
         <!-- Dynamic Grid Containers -->
         <div class="grid-layout mb-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3" id="grid-top"></div>
@@ -175,16 +144,20 @@
             CHART_STEP: false,
             AREA_OPACITY: 0.05,
             
+            // Standardized Title Styling
+            HEADER_TITLE_STYLE: "text-sm font-bold uppercase tracking-wider whitespace-nowrap",
+
             // Telemetry Definitions
             CLUSTERS: [
                 { id: 'big',    name: 'Big Cluster',    color: '#ef4444', cores: 2, maxGHz: 3.2, keywords: 'cpu processor cores' },
                 { id: 'mid',    name: 'Mid Cluster',    color: '#f59e0b', cores: 2, maxGHz: 2.4, keywords: 'cpu processor balanced' },
-                { id: 'little', name: 'Little Cluster', color: '#10b981', cores: 4, maxGHz: 1.8, keywords: 'cpu processor efficiency' }
+                { id: 'little', name: 'Lit Cluster', color: '#10b981', cores: 4, maxGHz: 1.8, keywords: 'cpu processor efficiency' }
             ],
             STATS: [
                 { 
                     id: 'temp', 
                     title: 'Temperatures (°C)', 
+                    color: '#f97316',
                     keywords: 'soc thermals package heat',
                     readouts: [
                         { id: 'temp-pkg', label: 'CPU Pkg', color: '#f97316', min: 30, max: 100, unit: '°C', hasArea: false },
@@ -194,6 +167,7 @@
                 { 
                     id: 'power', 
                     title: 'Power Consumption (W)', 
+                    color: '#ec4899',
                     keywords: 'wattage battery energy consumption package dram',
                     readouts: [
                         { id: 'power-pkg', label: 'Pkg', color: '#ec4899', min: 0, max: 120, unit: 'W', hasArea: true },
@@ -203,12 +177,14 @@
                 { 
                     id: 'fps', 
                     title: 'Frame Rate (FPS)', 
+                    color: '#3b82f6',
                     keywords: 'performance framerate graphics display',
                     readouts: [{ id: 'fps', label: 'FPS', color: '#3b82f6', min: 0, max: 144, unit: '', hasArea: true }]
                 },
                 { 
                     id: 'eff', 
                     title: 'Efficiency (FPS/W)', 
+                    color: '#10b981',
                     keywords: 'performance ratio battery life energy',
                     readouts: [{ id: 'eff', label: 'FPS/W', color: '#10b981', min: 0, max: 10, unit: '', hasArea: true }]
                 }
@@ -217,115 +193,12 @@
 
         /**
          * ==========================================
-         * 2. GEMINI AI MODULE
-         * ==========================================
-         */
-        const AI = {
-            isAnalyzing: false,
-            apiKey: "", 
-
-            /** Triggers the AI analysis of current system metrics */
-            async analyzeSystem() {
-                if (this.isAnalyzing) return;
-                this.isAnalyzing = true;
-
-                const reportContainer = document.getElementById('ai-report-container');
-                const reportContent = document.getElementById('ai-report-content');
-                
-                reportContainer.classList.remove('hidden');
-                reportContent.innerHTML = `
-                    <div class="flex items-center gap-3">
-                        <div class="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                        <p class="font-medium text-blue-800">Processing real-time telemetry with Gemini 2.5 Flash...</p>
-                    </div>`;
-
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-
-                const snapshot = this._getSystemSnapshot();
-                const prompt = this._buildPrompt(snapshot);
-
-                try {
-                    const result = await this._callGemini(prompt);
-                    reportContent.innerHTML = this._parseMarkdown(result);
-                } catch (err) {
-                    reportContent.innerHTML = `<div class="p-3 bg-red-50 text-red-700 rounded-lg">Failed to contact AI Analyst. Please check connection and try again.</div>`;
-                } finally {
-                    this.isAnalyzing = false;
-                }
-            },
-
-            _getSystemSnapshot() {
-                return {
-                    device: document.getElementById('device-name-text').innerText,
-                    averages: {
-                        big_cluster: document.getElementById('val-big-load-cur').innerText,
-                        mid_cluster: document.getElementById('val-mid-load-cur').innerText,
-                        temp_cpu: document.getElementById('val-temp-pkg-cur').innerText,
-                        power_pkg: document.getElementById('val-power-pkg-cur').innerText,
-                        fps: document.getElementById('val-fps-cur').innerText,
-                        efficiency: document.getElementById('val-eff-cur').innerText
-                    }
-                };
-            },
-
-            _buildPrompt(snapshot) {
-                return `Analyze this system telemetry snapshot for device: ${snapshot.device}:
-                    - CPU Load: Big Cluster (${snapshot.averages.big_cluster}), Mid (${snapshot.averages.mid_cluster})
-                    - Temperature: CPU Package at ${snapshot.averages.temp_cpu}
-                    - Power: Package Power at ${snapshot.averages.power_pkg}
-                    - Graphics: Running at ${snapshot.averages.fps} FPS
-                    - Overall Efficiency: ${snapshot.averages.efficiency} FPS/W
-
-                    Identify if there is thermal throttling, power bottlenecks, or if the system is highly efficient. Give 3 short, punchy bullet points and a concluding recommendation. Format with clear Markdown.`;
-            },
-
-            async _callGemini(userQuery, retries = 5) {
-                const systemPrompt = "You are a senior systems performance architect. Your goal is to analyze telemetry data and provide extremely technical yet concise insights. Use professional, clinical language. Do not use conversational filler.";
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${this.apiKey}`;
-                const payload = {
-                    contents: [{ parts: [{ text: userQuery }] }],
-                    systemInstruction: { parts: [{ text: systemPrompt }] }
-                };
-
-                for (let i = 0; i < retries; i++) {
-                    try {
-                        const response = await fetch(url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        const result = await response.json();
-                        return result.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
-                    } catch (err) {
-                        if (i === retries - 1) throw err;
-                        await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000));
-                    }
-                }
-            },
-
-            _parseMarkdown(text) {
-                return text
-                    .replace(/^### (.*$)/gim, '<h4 class="font-bold text-gray-800 mt-4">$1</h4>')
-                    .replace(/^## (.*$)/gim, '<h3 class="font-bold text-gray-900 mt-4">$1</h3>')
-                    .replace(/^\- (.*$)/gim, '<li class="ml-4 list-disc text-gray-600">$1</li>')
-                    .replace(/\*\*(.*?)\*\*/g, '<b class="text-blue-700 font-bold">$1</b>')
-                    .replace(/\n/g, '<br>');
-            },
-
-            closeReport() {
-                document.getElementById('ai-report-container').classList.add('hidden');
-            }
-        };
-
-        /**
-         * ==========================================
-         * 3. SETTINGS & PERSISTENCE
+         * 2. SETTINGS & PERSISTENCE
          * ==========================================
          */
         const Settings = {
             data: { layout: 'grid', filter: '', simRate: '1000' },
 
-            /** Manually saves current UI state to local storage */
             saveManual() {
                 this.data.layout = document.getElementById('grid-top').classList.contains('grid-cols-1') ? 'list' : 'grid';
                 this.data.filter = document.getElementById('chart-filter').value;
@@ -371,7 +244,7 @@
 
         /**
          * ==========================================
-         * 4. MONITOR ENGINE (Chart & Data Management)
+         * 3. MONITOR ENGINE (Chart & Data Management)
          * ==========================================
          */
         const Monitor = {
@@ -393,7 +266,6 @@
                 this.setDevice(CONFIG.DEVICE_NAME);
             },
 
-            /** Toggles tracing (pausing/resuming live data) */
             toggleTracing() {
                 this.isTracing = !this.isTracing;
                 const btn = document.getElementById('device-id');
@@ -412,7 +284,6 @@
                 document.getElementById('device-name-text').innerText = name || "Unknown Device";
             },
 
-            /** Main entry point for incoming telemetry data */
             push(data) {
                 if (!this.isTracing) return;
 
@@ -429,25 +300,32 @@
                     const avgL = Math.round(clusterMetrics.reduce((s, x) => s + x.load, 0) / c.cores);
                     const avgF = clusterMetrics.reduce((s, x) => s + x.freq, 0) / c.cores;
                     
-                    document.getElementById(`val-${c.id}-load-cur`).innerText = `${avgL}%`;
-                    document.getElementById(`val-${c.id}-freq-cur`).innerText = `${avgF.toFixed(2)} GHz`;
+                    const loadEl = document.getElementById(`val-${c.id}-load-cur`);
+                    const freqEl = document.getElementById(`val-${c.id}-freq-cur`);
+                    if (loadEl) loadEl.innerText = `${avgL}%`;
+                    if (freqEl) freqEl.innerText = `${avgF.toFixed(2)} GHz`;
                     
                     this._updateChartData(c.id, clusterMetrics.flatMap(core => [core.load, core.freq]));
                 });
             },
 
             _updateStats(data) {
-                // Update UI Badges
-                document.getElementById('val-temp-pkg-cur').innerText = `${Math.round(data.temp.pkg)}°C`;
-                document.getElementById('val-temp-gpu-cur').innerText = `${Math.round(data.temp.gpu)}°C`;
-                document.getElementById('val-power-pkg-cur').innerText = `${Math.round(data.power.pkg)}W`;
-                document.getElementById('val-power-dram-cur').innerText = `${Math.round(data.power.dram)}W`;
-                document.getElementById('val-fps-cur').innerText = Math.round(data.fps);
+                const pkgTempEl = document.getElementById('val-temp-pkg-cur');
+                const gpuTempEl = document.getElementById('val-temp-gpu-cur');
+                const pkgPwrEl = document.getElementById('val-power-pkg-cur');
+                const dramPwrEl = document.getElementById('val-power-dram-cur');
+                const fpsEl = document.getElementById('val-fps-cur');
+                const effEl = document.getElementById('val-eff-cur');
+
+                if (pkgTempEl) pkgTempEl.innerText = `${Math.round(data.temp.pkg)}°C`;
+                if (gpuTempEl) gpuTempEl.innerText = `${Math.round(data.temp.gpu)}°C`;
+                if (pkgPwrEl) pkgPwrEl.innerText = `${Math.round(data.power.pkg)}W`;
+                if (dramPwrEl) dramPwrEl.innerText = `${Math.round(data.power.dram)}W`;
+                if (fpsEl) fpsEl.innerText = Math.round(data.fps);
                 
                 const eff = data.power.pkg > 0 ? (data.fps / data.power.pkg) : 0;
-                document.getElementById('val-eff-cur').innerText = eff.toFixed(2);
+                if (effEl) effEl.innerText = eff.toFixed(2);
 
-                // Update Charts
                 this._updateChartData('temp', [data.temp.pkg, data.temp.gpu]);
                 this._updateChartData('power', [data.power.pkg, data.power.dram]);
                 this._updateChartData('fps', [data.fps]);
@@ -498,6 +376,7 @@
             _initCPUCharts() {
                 CONFIG.CLUSTERS.forEach(c => {
                     const el = document.getElementById(`chart-${c.id}`);
+                    if (!el) return;
                     const inst = echarts.init(el);
                     const opt = this._getChartDefaults();
                     
@@ -539,7 +418,9 @@
 
             _initStatCharts() {
                 CONFIG.STATS.forEach(s => {
-                    const inst = echarts.init(document.getElementById(`chart-${s.id}`));
+                    const el = document.getElementById(`chart-${s.id}`);
+                    if (!el) return;
+                    const inst = echarts.init(el);
                     const opt = this._getChartDefaults({ 
                         min: s.readouts[0].min, 
                         max: s.readouts[0].max, 
@@ -566,26 +447,28 @@
 
         /**
          * ==========================================
-         * 5. UI CONTROLLER (DOM Manipulation)
+         * 4. UI CONTROLLER (DOM Manipulation)
          * ==========================================
          */
         const UI = {
-            /** Dynamically generates card HTML from CONFIG */
             renderCards() {
                 const topGrid = document.getElementById('grid-top');
                 const bottomGrid = document.getElementById('grid-bottom');
+                if (!topGrid || !bottomGrid) return;
 
                 CONFIG.CLUSTERS.forEach(c => {
                     topGrid.insertAdjacentHTML('beforeend', `
                         <div class="chart-card bg-white p-5 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group" data-title="${c.name} ${c.keywords}">
-                            <button onclick="UI.toggleExpand(this, '${c.id}')" class="toggle-btn absolute top-12 right-4 p-1 rounded-md hover:bg-gray-100 text-gray-400 z-20">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-                            </button>
-                            <div class="flex justify-between items-start mb-2">
-                                <h2 class="text-sm font-bold uppercase tracking-wider" style="color: ${c.color}">${c.name}</h2>
-                                <div class="flex gap-3 text-right">
-                                    <div><span class="text-[9px] text-gray-400 uppercase font-bold block">Avg Load</span><div id="val-${c.id}-load-cur" class="cur-badge text-xs font-bold" style="color: ${c.color}">--%</div></div>
-                                    <div class="border-l border-gray-100 pl-3"><span class="text-[9px] text-gray-400 uppercase font-bold block">Avg Freq</span><div id="val-${c.id}-freq-cur" class="cur-badge text-xs font-bold opacity-80" style="color: ${c.color}">-- GHz</div></div>
+                            <div class="flex justify-between items-start mb-2 flex-nowrap">
+                                <h2 class="${CONFIG.HEADER_TITLE_STYLE}" style="color: ${c.color}">${c.name}</h2>
+                                <div class="flex items-center gap-3 flex-nowrap">
+                                    <div class="flex gap-3 text-right flex-nowrap">
+                                        <div class="whitespace-nowrap"><span class="text-[9px] text-gray-400 uppercase font-bold block">Avg Load</span><div id="val-${c.id}-load-cur" class="cur-badge text-xs font-bold" style="color: ${c.color}">--%</div></div>
+                                        <div class="border-l border-gray-100 pl-3 whitespace-nowrap"><span class="text-[9px] text-gray-400 uppercase font-bold block">Avg Freq</span><div id="val-${c.id}-freq-cur" class="cur-badge text-xs font-bold opacity-80" style="color: ${c.color}">-- GHz</div></div>
+                                    </div>
+                                    <button onclick="UI.toggleExpand(this, '${c.id}')" class="toggle-btn p-1 rounded-md hover:bg-gray-100 text-gray-400">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                                    </button>
                                 </div>
                             </div>
                             <div id="chart-${c.id}" class="chart-container w-full"></div>
@@ -597,18 +480,20 @@
                     const keywords = s.readouts.map(r => r.label).join(' ');
                     bottomGrid.insertAdjacentHTML('beforeend', `
                         <div class="chart-card bg-white p-6 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group" data-title="${s.title} ${s.keywords} ${keywords}">
-                            <button onclick="UI.toggleExpand(this, '${s.id}')" class="toggle-btn absolute top-12 right-4 p-1 rounded-md hover:bg-gray-100 text-gray-400 z-20">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-                            </button>
-                            <div class="flex justify-between items-start mb-4">
-                                <h2 class="text-lg font-semibold text-gray-700">${s.title}</h2>
-                                <div class="flex gap-4">
-                                    ${s.readouts.map((r, i) => `
-                                        <div class="text-right ${i > 0 ? 'border-l border-gray-100 pl-4' : ''}">
-                                            <span class="text-[10px] text-gray-400 uppercase font-bold block">${r.label}</span>
-                                            <div id="val-${r.id}-cur" class="cur-badge text-xs font-bold" style="color: ${r.color}">--${r.unit}</div>
-                                        </div>
-                                    `).join('')}
+                            <div class="flex justify-between items-start mb-4 flex-nowrap">
+                                <h2 class="${CONFIG.HEADER_TITLE_STYLE}" style="color: ${s.color}">${s.title}</h2>
+                                <div class="flex items-center gap-4 flex-nowrap">
+                                    <div class="flex gap-4 flex-nowrap">
+                                        ${s.readouts.map((r, i) => `
+                                            <div class="text-right ${i > 0 ? 'border-l border-gray-100 pl-4' : ''} whitespace-nowrap">
+                                                <span class="text-[10px] text-gray-400 uppercase font-bold block">${r.label}</span>
+                                                <div id="val-${r.id}-cur" class="cur-badge text-xs font-bold" style="color: ${r.color}">--${r.unit}</div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                    <button onclick="UI.toggleExpand(this, '${s.id}')" class="toggle-btn p-1 rounded-md hover:bg-gray-100 text-gray-400">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                                    </button>
                                 </div>
                             </div>
                             <div id="chart-${s.id}" class="chart-container w-full"></div>
@@ -620,21 +505,21 @@
             setLayout(mode) {
                 const gTop = document.getElementById('grid-top'), gBottom = document.getElementById('grid-bottom');
                 const bGrid = document.getElementById('btn-grid'), bList = document.getElementById('btn-list');
-                
                 const isGrid = mode === 'grid';
                 
-                // Toggle Grid columns
-                gTop.classList.toggle('grid-cols-1', !isGrid);
-                gTop.classList.toggle('md:grid-cols-2', isGrid);
-                gTop.classList.toggle('lg:grid-cols-3', isGrid);
-                
-                gBottom.classList.toggle('grid-cols-1', !isGrid);
-                gBottom.classList.toggle('md:grid-cols-2', isGrid);
-                
-                // Update Button Styles
-                bGrid.className = isGrid ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm' : 'px-4 py-1.5 text-sm font-bold text-gray-500';
-                bList.className = !isGrid ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm' : 'px-4 py-1.5 text-sm font-bold text-gray-500';
-                
+                if (gTop) {
+                    gTop.classList.toggle('grid-cols-1', !isGrid);
+                    gTop.classList.toggle('md:grid-cols-2', isGrid);
+                    gTop.classList.toggle('lg:grid-cols-3', isGrid);
+                }
+                if (gBottom) {
+                    gBottom.classList.toggle('grid-cols-1', !isGrid);
+                    gBottom.classList.toggle('md:grid-cols-2', isGrid);
+                }
+                if (bGrid && bList) {
+                    bGrid.className = isGrid ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm' : 'px-4 py-1.5 text-sm font-bold text-gray-500';
+                    bList.className = !isGrid ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm' : 'px-4 py-1.5 text-sm font-bold text-gray-500';
+                }
                 this._forceResize();
             },
 
@@ -642,58 +527,39 @@
                 const card = btn.closest('.chart-card');
                 const isExp = card.classList.toggle('expanded');
                 document.body.classList.toggle('modal-open', isExp);
-                
-                setTimeout(() => Monitor.charts[key].resize(), 300);
+                setTimeout(() => { if (Monitor.charts[key]) Monitor.charts[key].resize(); }, 300);
             },
 
             filterCharts(val) {
                 const rawVal = val.toLowerCase().trim();
                 const keywords = rawVal.split('|').map(k => k.trim()).filter(k => k.length > 0);
-                
                 document.querySelectorAll('.chart-card').forEach(c => {
                     const searchable = c.dataset.title.toLowerCase();
                     const matches = keywords.length === 0 || keywords.some(k => searchable.includes(k));
                     c.classList.toggle('hidden', !matches);
                 });
-
                 this._forceResize();
             },
 
             _forceResize() {
-                setTimeout(() => {
-                    Object.values(Monitor.charts).forEach(c => c.resize());
-                }, 150);
+                setTimeout(() => { Object.values(Monitor.charts).forEach(c => c.resize()); }, 150);
             }
         };
 
-        /**
-         * ==========================================
-         * 6. SIMULATION (Mock Data Generator)
-         * ==========================================
-         */
         const Sim = {
             interval: null,
-            
             updateRate(ms) {
                 clearInterval(this.interval);
                 if (ms > 0) this.interval = setInterval(() => this.tick(), ms);
             },
-
             tick() {
                 const getLoad = (base) => Math.max(5, Math.min(95, base + (Math.random() - 0.5) * 40));
-                
                 Monitor.push({
                     timestamp: new Date().toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' }),
                     cpu: {
-                        big: Array.from({ length: 2 }, () => { 
-                            const l = getLoad(50); return { load: l, freq: 0.8 + (l/100)*2.4 }; 
-                        }),
-                        mid: Array.from({ length: 2 }, () => { 
-                            const l = getLoad(30); return { load: l, freq: 0.6 + (l/100)*1.8 }; 
-                        }),
-                        little: Array.from({ length: 4 }, () => { 
-                            const l = getLoad(10); return { load: l, freq: 0.4 + (l/100)*1.4 }; 
-                        })
+                        big: Array.from({ length: 2 }, () => { const l = getLoad(50); return { load: l, freq: 0.8 + (l/100)*2.4 }; }),
+                        mid: Array.from({ length: 2 }, () => { const l = getLoad(30); return { load: l, freq: 0.6 + (l/100)*1.8 }; }),
+                        little: Array.from({ length: 4 }, () => { const l = getLoad(10); return { load: l, freq: 0.4 + (l/100)*1.4 }; })
                     },
                     temp: { pkg: 45 + Math.random() * 30, gpu: 40 + Math.random() * 20 },
                     power: { pkg: 10 + Math.random() * 80, dram: 2 + Math.random() * 8 },
@@ -702,19 +568,18 @@
             }
         };
 
-        // --- Bootstrap Application ---
         Monitor.init();
 
-        // Keyboard Accessibility
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape') {
                 const exp = document.querySelector('.chart-card.expanded');
                 if (exp) {
+                    const btn = exp.querySelector('.toggle-btn');
                     const title = exp.dataset.title.toLowerCase();
                     const key = title.includes('big') ? 'big' : title.includes('mid') ? 'mid' : 
                                 title.includes('little') ? 'little' : title.includes('temp') ? 'temp' : 
                                 title.includes('power') ? 'power' : title.includes('frame') ? 'fps' : 'eff';
-                    UI.toggleExpand(exp.querySelector('button'), key);
+                    UI.toggleExpand(btn, key);
                 }
             }
         });

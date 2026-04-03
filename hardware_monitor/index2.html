@@ -39,7 +39,7 @@
             border-radius: 0; 
             padding: 2rem; 
             background: white;
-            min-width: auto; /* Allow full screen to ignore card min-width */
+            min-width: auto; 
         }
 
         .chart-card.expanded .chart-container { 
@@ -131,108 +131,82 @@
     <script>
         /**
          * ==========================================
-         * 1. CONFIGURATION (Global Constants)
+         * 1. CONFIGURATION
          * ==========================================
          */
+        const BIG_CORES = 1;
+        const MID_CORES = 4;
+        const LITTLE_CORES = 2;
+
         const CONFIG = {
             DEVICE_NAME: "Android Pixel 8 Pro", 
-            STORAGE_KEY: 'sys_monitor_settings_manual_v3',
+            STORAGE_KEY: 'sys_monitor_settings_manual_v4',
             HISTORY_LEN: 60,
-            
-            // Visual Styles
             CHART_SMOOTH: true,
             CHART_STEP: false,
             AREA_OPACITY: 0.05,
-            
-            // Standardized Title Styling
             HEADER_TITLE_STYLE: "text-sm font-bold uppercase tracking-wider whitespace-nowrap",
 
-            // Telemetry Definitions
+            // Reordered CPU Clusters: Lit, Med, Big
             CLUSTERS: [
-                { id: 'big',    name: 'Big Cluster',    color: '#ef4444', cores: 2, maxGHz: 3.2, keywords: 'cpu processor cores' },
-                { id: 'mid',    name: 'Mid Cluster',    color: '#f59e0b', cores: 2, maxGHz: 2.4, keywords: 'cpu processor balanced' },
-                { id: 'little', name: 'Lit Cluster', color: '#10b981', cores: 4, maxGHz: 1.8, keywords: 'cpu processor efficiency' }
+                { id: 'little', name: 'Lit Cluster', color: '#10b981', cores: LITTLE_CORES, maxGHz: 1.8, keywords: 'cpu processor efficiency little lit' },
+                { id: 'mid',    name: 'Mid Cluster',    color: '#f59e0b', cores: MID_CORES, maxGHz: 2.4, keywords: 'cpu processor balanced mid med' },
+                { id: 'big',    name: 'Big Cluster',    color: '#ef4444', cores: BIG_CORES, maxGHz: 3.2, keywords: 'cpu processor cores big' }
             ],
             STATS: [
                 { 
                     id: 'temp', 
                     title: 'Temperatures (°C)', 
                     color: '#f97316',
-                    keywords: 'soc thermals package heat',
                     readouts: [
-                        { id: 'temp-pkg', label: 'CPU Pkg', color: '#f97316', min: 30, max: 100, unit: '°C', hasArea: false },
-                        { id: 'temp-gpu', label: 'GPU Core', color: '#8b5cf6', min: 30, max: 100, unit: '°C', hasArea: false }
+                        { id: 'temp-pkg', label: 'CPU Pkg', color: '#f97316', unit: '°C' },
+                        { id: 'temp-gpu', label: 'GPU Core', color: '#8b5cf6', unit: '°C' }
                     ]
                 },
                 { 
                     id: 'power', 
-                    title: 'Power Consumption (W)', 
+                    title: 'Power Consumption (mW)', 
                     color: '#ec4899',
-                    keywords: 'wattage battery energy consumption package dram',
                     readouts: [
-                        { id: 'power-pkg', label: 'Pkg', color: '#ec4899', min: 0, max: 120, unit: 'W', hasArea: true },
-                        { id: 'power-dram', label: 'DRAM', color: '#06b6d4', min: 0, max: 120, unit: 'W', hasArea: true }
+                        { id: 'power-pkg', label: 'Pkg', color: '#ec4899', unit: 'mW', hasArea: true },
+                        { id: 'power-dram', label: 'DRAM', color: '#06b6d4', unit: 'mW', hasArea: true }
                     ]
                 },
                 { 
                     id: 'fps', 
                     title: 'Frame Rate (FPS)', 
                     color: '#3b82f6',
-                    keywords: 'performance framerate graphics display',
-                    readouts: [{ id: 'fps', label: 'FPS', color: '#3b82f6', min: 0, max: 144, unit: '', hasArea: true }]
+                    readouts: [{ id: 'fps', label: 'FPS', color: '#3b82f6', unit: '', hasArea: true }]
                 },
                 { 
                     id: 'eff', 
-                    title: 'Efficiency (FPS/W)', 
+                    title: 'Efficiency (FPS/mW)', 
                     color: '#10b981',
-                    keywords: 'performance ratio battery life energy',
-                    readouts: [{ id: 'eff', label: 'FPS/W', color: '#10b981', min: 0, max: 10, unit: '', hasArea: true }]
+                    readouts: [{ id: 'eff', label: 'FPS/mW', color: '#10b981', unit: '', hasArea: true }]
                 }
             ]
         };
 
-        /**
-         * ==========================================
-         * 2. SETTINGS & PERSISTENCE
-         * ==========================================
-         */
         const Settings = {
             data: { layout: 'grid', filter: '', simRate: '1000' },
-
             saveManual() {
                 this.data.layout = document.getElementById('grid-top').classList.contains('grid-cols-1') ? 'list' : 'grid';
                 this.data.filter = document.getElementById('chart-filter').value;
                 this.data.simRate = document.getElementById('interval-select').value;
-                
                 localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(this.data));
                 this._showSaveFeedback();
             },
-
             _showSaveFeedback() {
                 const btn = document.getElementById('btn-save');
                 const originalContent = btn.innerHTML;
                 btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Saved`;
-                btn.classList.add('bg-green-600');
-                btn.classList.remove('bg-gray-800');
-                
-                setTimeout(() => {
-                    btn.innerHTML = originalContent;
-                    btn.classList.remove('bg-green-600');
-                    btn.classList.add('bg-gray-800');
-                }, 2000);
+                btn.classList.add('bg-green-600'); btn.classList.remove('bg-gray-800');
+                setTimeout(() => { btn.innerHTML = originalContent; btn.classList.remove('bg-green-600'); btn.classList.add('bg-gray-800'); }, 2000);
             },
-
             load() {
                 const stored = localStorage.getItem(CONFIG.STORAGE_KEY);
-                if (stored) { 
-                    try { 
-                        this.data = { ...this.data, ...JSON.parse(stored) }; 
-                    } catch (e) {
-                        console.error("Settings load failed", e);
-                    } 
-                }
+                if (stored) { try { this.data = { ...this.data, ...JSON.parse(stored) }; } catch (e) {} }
             },
-
             apply() {
                 UI.setLayout(this.data.layout);
                 document.getElementById('chart-filter').value = this.data.filter;
@@ -242,11 +216,6 @@
             }
         };
 
-        /**
-         * ==========================================
-         * 3. MONITOR ENGINE (Chart & Data Management)
-         * ==========================================
-         */
         const Monitor = {
             charts: {},
             isTracing: true, 
@@ -256,13 +225,8 @@
                 UI.renderCards(); 
                 this._initCPUCharts();
                 this._initStatCharts();
-                
-                window.addEventListener('resize', () => {
-                    Object.values(this.charts).forEach(c => c.resize());
-                });
-
-                Settings.load();
-                Settings.apply();
+                window.addEventListener('resize', () => { Object.values(this.charts).forEach(c => c.resize()); });
+                Settings.load(); Settings.apply();
                 this.setDevice(CONFIG.DEVICE_NAME);
             },
 
@@ -270,26 +234,19 @@
                 this.isTracing = !this.isTracing;
                 const btn = document.getElementById('device-id');
                 const statusTxt = document.getElementById('tracing-status');
-                
                 if (this.isTracing) {
-                    btn.classList.replace('tracing-inactive', 'tracing-active');
-                    statusTxt.innerText = "(Live)";
+                    btn.classList.replace('tracing-inactive', 'tracing-active'); statusTxt.innerText = "(Live)";
                 } else {
-                    btn.classList.replace('tracing-active', 'tracing-inactive');
-                    statusTxt.innerText = "(Stopped)";
+                    btn.classList.replace('tracing-active', 'tracing-inactive'); statusTxt.innerText = "(Stopped)";
                 }
             },
 
-            setDevice(name) {
-                document.getElementById('device-name-text').innerText = name || "Unknown Device";
-            },
+            setDevice(name) { document.getElementById('device-name-text').innerText = name || "Unknown Device"; },
 
             push(data) {
                 if (!this.isTracing) return;
-
                 this.state.categories.shift();
                 this.state.categories.push(data.timestamp);
-
                 this._updateClusters(data.cpu);
                 this._updateStats(data);
             },
@@ -297,14 +254,13 @@
             _updateClusters(cpuData) {
                 CONFIG.CLUSTERS.forEach(c => {
                     const clusterMetrics = cpuData[c.id];
+                    if (!clusterMetrics) return;
                     const avgL = Math.round(clusterMetrics.reduce((s, x) => s + x.load, 0) / c.cores);
                     const avgF = clusterMetrics.reduce((s, x) => s + x.freq, 0) / c.cores;
-                    
                     const loadEl = document.getElementById(`val-${c.id}-load-cur`);
                     const freqEl = document.getElementById(`val-${c.id}-freq-cur`);
                     if (loadEl) loadEl.innerText = `${avgL}%`;
                     if (freqEl) freqEl.innerText = `${avgF.toFixed(2)} GHz`;
-                    
                     this._updateChartData(c.id, clusterMetrics.flatMap(core => [core.load, core.freq]));
                 });
             },
@@ -319,12 +275,13 @@
 
                 if (pkgTempEl) pkgTempEl.innerText = `${Math.round(data.temp.pkg)}°C`;
                 if (gpuTempEl) gpuTempEl.innerText = `${Math.round(data.temp.gpu)}°C`;
-                if (pkgPwrEl) pkgPwrEl.innerText = `${Math.round(data.power.pkg)}W`;
-                if (dramPwrEl) dramPwrEl.innerText = `${Math.round(data.power.dram)}W`;
+                if (pkgPwrEl) pkgPwrEl.innerText = `${Math.round(data.power.pkg)}mW`;
+                if (dramPwrEl) dramPwrEl.innerText = `${Math.round(data.power.dram)}mW`;
                 if (fpsEl) fpsEl.innerText = Math.round(data.fps);
                 
+                // Efficiency calculation updated to FPS/mW (Frames per milliwatt)
                 const eff = data.power.pkg > 0 ? (data.fps / data.power.pkg) : 0;
-                if (effEl) effEl.innerText = eff.toFixed(2);
+                if (effEl) effEl.innerText = eff.toFixed(4); // Increased precision for milli-scale
 
                 this._updateChartData('temp', [data.temp.pkg, data.temp.gpu]);
                 this._updateChartData('power', [data.power.pkg, data.power.dram]);
@@ -336,37 +293,29 @@
                 const chart = this.charts[key];
                 const card = document.getElementById(`chart-${key}`)?.parentElement;
                 if (!chart || card?.classList.contains('hidden')) return;
-
                 const options = chart.getOption();
+                if (!options.series || options.series.length === 0) return;
                 const seriesUpdate = values.map((val, idx) => {
-                    const data = options.series[idx].data;
+                    if (!options.series[idx]) return { data: [] };
+                    const data = options.series[idx].data || [];
                     data.shift();
                     data.push(val);
                     return { data };
                 });
-
-                chart.setOption({ 
-                    xAxis: { data: this.state.categories }, 
-                    series: seriesUpdate 
-                });
+                chart.setOption({ xAxis: { data: this.state.categories }, series: seriesUpdate });
             },
 
             _getChartDefaults(yAxisConfig = {}) {
                 return {
                     animation: false,
                     tooltip: { trigger: 'axis', axisPointer: { animation: false } },
-                    grid: { top: 15, left: 40, right: 10, bottom: 25 },
-                    xAxis: { 
-                        type: 'category', 
-                        data: this.state.categories, 
-                        boundaryGap: false, 
-                        axisLabel: { show: false }, 
-                        axisTick: { show: false }, 
-                        axisLine: { show: false } 
-                    },
+                    // containLabel: true handles dynamic width automatically
+                    grid: { top: 30, left: 10, right: 15, bottom: 10, containLabel: true },
+                    xAxis: { type: 'category', data: this.state.categories, boundaryGap: false, axisLabel: { show: false }, axisTick: { show: false }, axisLine: { show: false } },
                     yAxis: { 
                         splitLine: { lineStyle: { type: 'dashed', color: '#f3f4f6' } }, 
-                        axisLabel: { fontSize: 10 }, 
+                        axisLabel: { fontSize: 10 },
+                        scale: true, // Scales based on data range
                         ...yAxisConfig 
                     },
                     series: []
@@ -379,40 +328,17 @@
                     if (!el) return;
                     const inst = echarts.init(el);
                     const opt = this._getChartDefaults();
-                    
-                    opt.grid.right = 40;
                     opt.yAxis = [
                         { type: 'value', min: 0, max: 100, axisLabel: { formatter: '{value}%' } },
                         { type: 'value', min: 0, max: c.maxGHz, axisLabel: { formatter: '{value}G' }, splitLine: { show: false } }
                     ];
-
                     for (let i = 0; i < c.cores; i++) {
                         opt.series.push(
-                            { 
-                                name: `C${i+1} Load`, 
-                                type: 'line', 
-                                showSymbol: false, 
-                                smooth: CONFIG.CHART_SMOOTH, 
-                                lineStyle: { width: 2, color: c.color }, 
-                                data: Array(CONFIG.HISTORY_LEN).fill(0), 
-                                yAxisIndex: 0,
-                                tooltip: { valueFormatter: (val) => val.toFixed(2) + '%' }
-                            },
-                            { 
-                                name: `C${i+1} Freq`, 
-                                type: 'line', 
-                                showSymbol: false, 
-                                smooth: CONFIG.CHART_SMOOTH, 
-                                areaStyle: { color: c.color, opacity: 0.1 }, 
-                                lineStyle: { width: 1, color: c.color, type: 'dotted' }, 
-                                data: Array(CONFIG.HISTORY_LEN).fill(0), 
-                                yAxisIndex: 1,
-                                tooltip: { valueFormatter: (val) => val.toFixed(2) + ' GHz' }
-                            }
+                            { name: `C${i+1} L`, type: 'line', showSymbol: false, smooth: CONFIG.CHART_SMOOTH, lineStyle: { width: 2, color: c.color }, data: Array(CONFIG.HISTORY_LEN).fill(0), yAxisIndex: 0, tooltip: { valueFormatter: (val) => val.toFixed(2) + '%' } },
+                            { name: `C${i+1} F`, type: 'line', showSymbol: false, smooth: CONFIG.CHART_SMOOTH, areaStyle: { color: c.color, opacity: 0.1 }, lineStyle: { width: 1, color: c.color, type: 'dotted' }, data: Array(CONFIG.HISTORY_LEN).fill(0), yAxisIndex: 1, tooltip: { valueFormatter: (val) => val.toFixed(2) + ' GHz' } }
                         );
                     }
-                    inst.setOption(opt);
-                    this.charts[c.id] = inst;
+                    inst.setOption(opt); this.charts[c.id] = inst;
                 });
             },
 
@@ -421,35 +347,15 @@
                     const el = document.getElementById(`chart-${s.id}`);
                     if (!el) return;
                     const inst = echarts.init(el);
-                    const opt = this._getChartDefaults({ 
-                        min: s.readouts[0].min, 
-                        max: s.readouts[0].max, 
-                        axisLabel: { formatter: `{value}${s.readouts[0].unit}` } 
-                    });
-
+                    const opt = this._getChartDefaults({ axisLabel: { formatter: `{value}${s.readouts[0].unit}` } });
                     opt.series = s.readouts.map((r) => ({
-                        name: r.label, 
-                        type: 'line', 
-                        showSymbol: false, 
-                        smooth: CONFIG.CHART_SMOOTH, 
-                        step: CONFIG.CHART_STEP, 
-                        itemStyle: { color: r.color }, 
-                        areaStyle: r.hasArea ? { opacity: CONFIG.AREA_OPACITY } : null,
-                        data: Array(CONFIG.HISTORY_LEN).fill(0),
-                        tooltip: { valueFormatter: (val) => val.toFixed(2) + (r.unit || '') }
+                        name: r.label, type: 'line', showSymbol: false, smooth: CONFIG.CHART_SMOOTH, step: CONFIG.CHART_STEP, itemStyle: { color: r.color }, areaStyle: r.hasArea ? { opacity: CONFIG.AREA_OPACITY } : null, data: Array(CONFIG.HISTORY_LEN).fill(0), tooltip: { valueFormatter: (val) => val.toFixed(4) + (r.unit || '') }
                     }));
-
-                    inst.setOption(opt);
-                    this.charts[s.id] = inst;
+                    inst.setOption(opt); this.charts[s.id] = inst;
                 });
             }
         };
 
-        /**
-         * ==========================================
-         * 4. UI CONTROLLER (DOM Manipulation)
-         * ==========================================
-         */
         const UI = {
             renderCards() {
                 const topGrid = document.getElementById('grid-top');
@@ -458,7 +364,7 @@
 
                 CONFIG.CLUSTERS.forEach(c => {
                     topGrid.insertAdjacentHTML('beforeend', `
-                        <div class="chart-card bg-white p-5 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group" data-title="${c.name} ${c.keywords}">
+                        <div class="chart-card bg-white p-5 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group">
                             <div class="flex justify-between items-start mb-2 flex-nowrap">
                                 <h2 class="${CONFIG.HEADER_TITLE_STYLE}" style="color: ${c.color}">${c.name}</h2>
                                 <div class="flex items-center gap-3 flex-nowrap">
@@ -466,20 +372,16 @@
                                         <div class="whitespace-nowrap"><span class="text-[9px] text-gray-400 uppercase font-bold block">Avg Load</span><div id="val-${c.id}-load-cur" class="cur-badge text-xs font-bold" style="color: ${c.color}">--%</div></div>
                                         <div class="border-l border-gray-100 pl-3 whitespace-nowrap"><span class="text-[9px] text-gray-400 uppercase font-bold block">Avg Freq</span><div id="val-${c.id}-freq-cur" class="cur-badge text-xs font-bold opacity-80" style="color: ${c.color}">-- GHz</div></div>
                                     </div>
-                                    <button onclick="UI.toggleExpand(this, '${c.id}')" class="toggle-btn p-1 rounded-md hover:bg-gray-100 text-gray-400">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-                                    </button>
+                                    <button onclick="UI.toggleExpand(this, '${c.id}')" class="toggle-btn p-1 rounded-md hover:bg-gray-100 text-gray-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg></button>
                                 </div>
                             </div>
                             <div id="chart-${c.id}" class="chart-container w-full"></div>
-                        </div>`
-                    );
+                        </div>`);
                 });
 
                 CONFIG.STATS.forEach(s => {
-                    const keywords = s.readouts.map(r => r.label).join(' ');
                     bottomGrid.insertAdjacentHTML('beforeend', `
-                        <div class="chart-card bg-white p-6 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group" data-title="${s.title} ${s.keywords} ${keywords}">
+                        <div class="chart-card bg-white p-6 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group">
                             <div class="flex justify-between items-start mb-4 flex-nowrap">
                                 <h2 class="${CONFIG.HEADER_TITLE_STYLE}" style="color: ${s.color}">${s.title}</h2>
                                 <div class="flex items-center gap-4 flex-nowrap">
@@ -488,82 +390,63 @@
                                             <div class="text-right ${i > 0 ? 'border-l border-gray-100 pl-4' : ''} whitespace-nowrap">
                                                 <span class="text-[10px] text-gray-400 uppercase font-bold block">${r.label}</span>
                                                 <div id="val-${r.id}-cur" class="cur-badge text-xs font-bold" style="color: ${r.color}">--${r.unit}</div>
-                                            </div>
-                                        `).join('')}
+                                            </div>`).join('')}
                                     </div>
-                                    <button onclick="UI.toggleExpand(this, '${s.id}')" class="toggle-btn p-1 rounded-md hover:bg-gray-100 text-gray-400">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-                                    </button>
+                                    <button onclick="UI.toggleExpand(this, '${s.id}')" class="toggle-btn p-1 rounded-md hover:bg-gray-100 text-gray-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg></button>
                                 </div>
                             </div>
                             <div id="chart-${s.id}" class="chart-container w-full"></div>
-                        </div>`
-                    );
+                        </div>`);
                 });
             },
-
             setLayout(mode) {
                 const gTop = document.getElementById('grid-top'), gBottom = document.getElementById('grid-bottom');
                 const bGrid = document.getElementById('btn-grid'), bList = document.getElementById('btn-list');
                 const isGrid = mode === 'grid';
-                
-                if (gTop) {
-                    gTop.classList.toggle('grid-cols-1', !isGrid);
-                    gTop.classList.toggle('md:grid-cols-2', isGrid);
-                    gTop.classList.toggle('lg:grid-cols-3', isGrid);
-                }
-                if (gBottom) {
-                    gBottom.classList.toggle('grid-cols-1', !isGrid);
-                    gBottom.classList.toggle('md:grid-cols-2', isGrid);
-                }
-                if (bGrid && bList) {
-                    bGrid.className = isGrid ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm' : 'px-4 py-1.5 text-sm font-bold text-gray-500';
-                    bList.className = !isGrid ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm' : 'px-4 py-1.5 text-sm font-bold text-gray-500';
-                }
+                if (gTop) { gTop.classList.toggle('grid-cols-1', !isGrid); gTop.classList.toggle('md:grid-cols-2', isGrid); gTop.classList.toggle('lg:grid-cols-3', isGrid); }
+                if (gBottom) { gBottom.classList.toggle('grid-cols-1', !isGrid); gBottom.classList.toggle('md:grid-cols-2', isGrid); }
+                if (bGrid && bList) { bGrid.className = isGrid ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm' : 'px-4 py-1.5 text-sm font-bold text-gray-500'; bList.className = !isGrid ? 'px-4 py-1.5 rounded-md text-sm font-bold bg-blue-600 text-white shadow-sm' : 'px-4 py-1.5 text-sm font-bold text-gray-500'; }
                 this._forceResize();
             },
-
             toggleExpand(btn, key) {
-                const card = btn.closest('.chart-card');
-                const isExp = card.classList.toggle('expanded');
+                const card = btn.closest('.chart-card'); const isExp = card.classList.toggle('expanded');
                 document.body.classList.toggle('modal-open', isExp);
                 setTimeout(() => { if (Monitor.charts[key]) Monitor.charts[key].resize(); }, 300);
             },
-
             filterCharts(val) {
                 const rawVal = val.toLowerCase().trim();
                 const keywords = rawVal.split('|').map(k => k.trim()).filter(k => k.length > 0);
                 document.querySelectorAll('.chart-card').forEach(c => {
-                    const searchable = c.dataset.title.toLowerCase();
+                    const searchable = c.innerHTML.toLowerCase(); 
                     const matches = keywords.length === 0 || keywords.some(k => searchable.includes(k));
                     c.classList.toggle('hidden', !matches);
                 });
                 this._forceResize();
             },
-
-            _forceResize() {
-                setTimeout(() => { Object.values(Monitor.charts).forEach(c => c.resize()); }, 150);
-            }
+            _forceResize() { setTimeout(() => { Object.values(Monitor.charts).forEach(c => c.resize()); }, 150); }
         };
 
         const Sim = {
             interval: null,
-            updateRate(ms) {
-                clearInterval(this.interval);
-                if (ms > 0) this.interval = setInterval(() => this.tick(), ms);
-            },
+            updateRate(ms) { clearInterval(this.interval); if (ms > 0) this.interval = setInterval(() => this.tick(), ms); },
             tick() {
                 const getLoad = (base) => Math.max(5, Math.min(95, base + (Math.random() - 0.5) * 40));
                 Monitor.push({
                     timestamp: new Date().toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' }),
                     cpu: {
-                        big: Array.from({ length: 2 }, () => { const l = getLoad(50); return { load: l, freq: 0.8 + (l/100)*2.4 }; }),
-                        mid: Array.from({ length: 2 }, () => { const l = getLoad(30); return { load: l, freq: 0.6 + (l/100)*1.8 }; }),
-                        little: Array.from({ length: 4 }, () => { const l = getLoad(10); return { load: l, freq: 0.4 + (l/100)*1.4 }; })
+                        big: Array.from({ length: BIG_CORES }, () => { 
+                            const l = getLoad(50); return { load: l, freq: 0.8 + (l/100)*2.4 }; 
+                        }),
+                        mid: Array.from({ length: MID_CORES }, () => { 
+                            const l = getLoad(30); return { load: l, freq: 0.6 + (l/100)*1.8 }; 
+                        }),
+                        little: Array.from({ length: LITTLE_CORES }, () => { 
+                            const l = getLoad(10); return { load: l, freq: 0.4 + (l/100)*1.4 }; 
+                        })
                     },
-                    temp: { pkg: 45 + Math.random() * 30, gpu: 40 + Math.random() * 20 },
-                    power: { pkg: 10 + Math.random() * 80, dram: 2 + Math.random() * 8 },
-                    fps: 58 + Math.random() * 6
+                    temp: { pkg: 40 + Math.random() * 20, gpu: 38 + Math.random() * 15 },
+                    power: { pkg: 800 + Math.random() * 1200, dram: 100 + Math.random() * 400 },
+                    fps: 59 + Math.random() * 2
                 });
             }
         };
@@ -575,10 +458,7 @@
                 const exp = document.querySelector('.chart-card.expanded');
                 if (exp) {
                     const btn = exp.querySelector('.toggle-btn');
-                    const title = exp.dataset.title.toLowerCase();
-                    const key = title.includes('big') ? 'big' : title.includes('mid') ? 'mid' : 
-                                title.includes('little') ? 'little' : title.includes('temp') ? 'temp' : 
-                                title.includes('power') ? 'power' : title.includes('frame') ? 'fps' : 'eff';
+                    const key = Object.keys(Monitor.charts).find(k => exp.innerHTML.includes(k)) || 'fps';
                     UI.toggleExpand(btn, key);
                 }
             }

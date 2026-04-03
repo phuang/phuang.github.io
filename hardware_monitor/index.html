@@ -1,518 +1,477 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced System Telemetry - Heterogeneous CPU</title>
+    <title>Advanced System Monitor</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
-        :root {
-            --bg-dark: #0f172a;
-            --card-bg: #1e293b;
-            --accent-blue: #38bdf8;
-            --accent-green: #4ade80;
-            --accent-red: #fb7185;
-            --accent-orange: #fb923c;
-            --accent-purple: #c084fc;
+        body { background-color: #f3f4f6; transition: background-color 0.3s; }
+        
+        /* Chart Cards & Layout */
+        .chart-card { transition: all 0.2s ease-in-out; position: relative; min-width: 400px; }
+        .chart-card.hidden { display: none; }
+        .chart-container { height: 300px; transition: height 0.3s ease; }
+        
+        /* Fullscreen Expansion */
+        .chart-card.expanded {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 100; margin: 0; border-radius: 0; padding: 2rem; 
+            background: white; min-width: auto; 
         }
-
-        body {
-            background-color: var(--bg-dark);
-            color: #f1f5f9;
-            font-family: 'Inter', sans-serif;
-            overflow-x: hidden;
-            transition: background-color 0.3s ease;
-        }
-
-        .mono {
-            font-family: 'JetBrains+Mono', monospace;
-        }
-
-        .glass-card {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 1rem;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            cursor: pointer;
-        }
-
-        /* Fullscreen Overlay Style */
-        .glass-card.fullscreen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 9999;
-            border-radius: 0;
-            background: var(--bg-dark);
-            padding: 2rem;
-            cursor: default;
-        }
-
-        .fullscreen .chart-container {
-            height: calc(100vh - 150px) !important;
-        }
-
-        .status-pulse {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--accent-green);
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% {
-                box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7);
-            }
-
-            70% {
-                box-shadow: 0 0 0 10px rgba(74, 222, 128, 0);
-            }
-
-            100% {
-                box-shadow: 0 0 0 0 rgba(74, 222, 128, 0);
-            }
-        }
-
-        .chart-container {
-            height: 200px;
-            position: relative;
-            transition: height 0.3s ease;
-        }
-
-        .expand-btn {
-            opacity: 0.4;
-            transition: opacity 0.2s, transform 0.2s;
-        }
-
-        .expand-btn:hover {
-            opacity: 1;
-            transform: scale(1.1);
-        }
-
-        .layout-btn {
-            @apply p-2 rounded-md transition-all border border-slate-700 bg-slate-800/50 text-slate-400 hover:text-white hover:border-slate-500 flex items-center justify-center;
-        }
-
-        .layout-btn.active {
-            @apply bg-sky-500/20 text-sky-400 border-sky-500/50;
-        }
+        .chart-card.expanded .chart-container { height: calc(100vh - 160px) !important; }
+        body.modal-open { overflow: hidden; }
+        
+        /* Interactions */
+        .toggle-btn { opacity: 0; transition: all 0.2s; }
+        .chart-card:hover .toggle-btn { opacity: 1; }
+        .font-mono-stat { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+        
+        .grid-layout { display: grid; gap: 1.5rem; transition: all 0.3s ease; }
+        
+        /* Status Indicators */
+        #device-status-badge { transition: all 0.2s ease; }
+        .tracing-active .status-dot { color: #4ade80; }
+        .tracing-inactive .status-dot { color: #f87171; opacity: 0.6; }
+        .tracing-inactive { filter: grayscale(0.5); opacity: 0.8; }
     </style>
 </head>
+<body class="p-4 md:p-8 text-gray-700">
 
-<body class="p-4 md:p-8">
-    <header
-        class="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row md:items-end justify-between border-b border-slate-800 pb-6 gap-6">
-        <div>
-            <h1 class="text-3xl font-bold tracking-tight text-white">CPU Cluster <span
-                    class="text-sky-400">Telemetry</span></h1>
-            <p class="text-slate-400 text-sm mt-1 flex items-center gap-2">
-                <span class="status-pulse"></span> Analyzing Heterogeneous Architecture (Big.LITTLE)
-            </p>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-4">
-            <div class="flex bg-slate-900/50 p-1 rounded-lg border border-slate-800 gap-1">
-                <button onclick="setLayout('standard')" id="btn-standard" class="layout-btn active"
-                    title="Balanced View">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect width="7" height="9" x="3" y="3" rx="1" />
-                        <rect width="7" height="5" x="14" y="3" rx="1" />
-                        <rect width="7" height="9" x="14" y="12" rx="1" />
-                        <rect width="7" height="5" x="3" y="16" rx="1" />
-                    </svg>
-                </button>
-                <button onclick="setLayout('list')" id="btn-list" class="layout-btn" title="List View">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect width="20" height="5" x="2" y="3" rx="1" />
-                        <rect width="20" height="5" x="2" y="11" rx="1" />
-                        <rect width="20" height="5" x="2" y="19" rx="1" />
-                    </svg>
-                </button>
-                <button onclick="setLayout('grid')" id="btn-grid" class="layout-btn" title="Grid View">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect width="7" height="7" x="3" y="3" rx="1" />
-                        <rect width="7" height="7" x="14" y="3" rx="1" />
-                        <rect width="7" height="7" x="14" y="14" rx="1" />
-                        <rect width="7" height="7" x="3" y="14" rx="1" />
-                    </svg>
-                </button>
+    <div class="max-w-7xl mx-auto">
+        <!-- Main Toolbar -->
+        <header class="mb-8 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <div class="flex-shrink-0">
+                <h1 class="text-3xl font-light text-gray-800">Advanced System Monitor</h1>
             </div>
-            <div class="text-right border-l border-slate-800 pl-4">
-                <div class="text-xs uppercase tracking-widest text-slate-500 font-bold">Session Uptime</div>
-                <div class="mono text-sky-400 text-xl leading-none mt-1" id="timer">00:00:00</div>
-            </div>
-        </div>
-    </header>
-
-    <main class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6" id="main-grid">
-        <!-- Figure 1: Big Cores -->
-        <div class="glass-card p-5 md:col-span-1" id="container-big" ondblclick="toggleFullscreen('container-big')">
-            <div class="flex justify-between items-start mb-4">
-                <div>
-                    <h3 class="text-rose-400 font-bold text-xs uppercase tracking-wider">Big Cores</h3>
-                    <span id="stat-big" class="mono text-[10px] text-slate-400">Avg: 0%</span>
+            
+            <div class="flex flex-wrap items-center gap-3 flex-1">
+                <!-- View Mode Toggle -->
+                <div class="flex bg-white rounded-lg shadow-sm border border-gray-100 p-1 flex-shrink-0">
+                    <button id="btn-grid" onclick="UI.setLayout('grid')" class="px-4 py-1.5 rounded-md text-sm transition-all bg-blue-600 text-white">Grid</button>
+                    <button id="btn-list" onclick="UI.setLayout('list')" class="px-4 py-1.5 rounded-md text-sm transition-all text-gray-500 hover:text-gray-700">List</button>
                 </div>
-                <button onclick="event.stopPropagation(); toggleFullscreen('container-big')"
-                    class="expand-btn text-slate-500 hover:text-white">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="m15 3 6 6M9 21l-6-6M21 3l-6 6M3 21l6-6" />
-                    </svg>
-                </button>
-            </div>
-            <div class="chart-container">
-                <canvas id="chartBig"></canvas>
-            </div>
-        </div>
 
-        <!-- Figure 2: Mid Cores -->
-        <div class="glass-card p-5 md:col-span-1" id="container-mid" ondblclick="toggleFullscreen('container-mid')">
-            <div class="flex justify-between items-start mb-4">
-                <div>
-                    <h3 class="text-orange-400 font-bold text-xs uppercase tracking-wider">Mid Cores</h3>
-                    <span id="stat-mid" class="mono text-[10px] text-slate-400">Avg: 0%</span>
+                <!-- Live Search Filter -->
+                <div class="relative flex-1 min-w-[200px]">
+                    <input type="text" id="chart-filter" oninput="UI.filterCharts(this.value)" placeholder="Filter clusters or stats..." class="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 outline-none text-sm font-light">
+                    <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 </div>
-                <button onclick="event.stopPropagation(); toggleFullscreen('container-mid')"
-                    class="expand-btn text-slate-500 hover:text-white">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="m15 3 6 6M9 21l-6-6M21 3l-6 6M3 21l6-6" />
-                    </svg>
-                </button>
-            </div>
-            <div class="chart-container">
-                <canvas id="chartMid"></canvas>
-            </div>
-        </div>
 
-        <!-- Figure 3: Little Cores -->
-        <div class="glass-card p-5 md:col-span-1" id="container-little"
-            ondblclick="toggleFullscreen('container-little')">
-            <div class="flex justify-between items-start mb-4">
-                <div>
-                    <h3 class="text-emerald-400 font-bold text-xs uppercase tracking-wider">Little Cores</h3>
-                    <span id="stat-little" class="mono text-[10px] text-slate-400">Avg: 0%</span>
+                <!-- Update Frequency -->
+                <div class="flex items-center gap-2 bg-white p-2 rounded-lg shadow-sm border border-gray-100 flex-shrink-0">
+                    <span class="text-sm font-light text-gray-400 ml-2">Rate:</span>
+                    <select id="interval-select" onchange="Monitor.updateRate(this.value)" class="text-sm border-none focus:ring-0 cursor-pointer font-medium text-blue-600 bg-transparent">
+                        <option value="1000">1.0s</option>
+                        <option value="500">0.5s</option>
+                        <option value="0">Paused</option>
+                    </select>
                 </div>
-                <button onclick="event.stopPropagation(); toggleFullscreen('container-little')"
-                    class="expand-btn text-slate-500 hover:text-white">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="m15 3 6 6M9 21l-6-6M21 3l-6 6M3 21l6-6" />
-                    </svg>
-                </button>
-            </div>
-            <div class="chart-container">
-                <canvas id="chartLittle"></canvas>
-            </div>
-        </div>
 
-        <!-- Figure 4: Power Rails -->
-        <div class="glass-card p-5 md:col-span-3" id="container-power" ondblclick="toggleFullscreen('container-power')">
-            <div class="flex justify-between items-start mb-4">
-                <div>
-                    <h3 class="text-slate-400 font-semibold text-xs uppercase tracking-wider">Power Rails (W)</h3>
-                    <div class="flex gap-2 text-[8px] uppercase font-bold mono mt-1">
-                        <span class="text-sky-400">CPU</span> <span class="text-purple-400">GPU</span> <span
-                            class="text-emerald-400">MEM</span>
-                    </div>
-                </div>
-                <button onclick="event.stopPropagation(); toggleFullscreen('container-power')"
-                    class="expand-btn text-slate-500 hover:text-white">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="m15 3 6 6M9 21l-6-6M21 3l-6 6M3 21l6-6" />
-                    </svg>
+                <!-- Device & Tracing Toggle -->
+                <button id="device-status-badge" onclick="Monitor.toggleTracing()" class="tracing-active inline-flex items-center px-3 py-1.5 rounded-md text-sm bg-gray-800 text-white border border-gray-700 shadow-sm font-mono hover:bg-gray-700 active:scale-95 transition-all flex-shrink-0">
+                    <svg class="status-dot w-3.5 h-3.5 mr-2 transition-colors duration-300" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>
+                    <span id="device-name-display" class="font-normal">Android Pixel 8 Pro</span>
+                    <span id="tracing-label" class="ml-2 text-[10px] uppercase opacity-50">(Live)</span>
                 </button>
-            </div>
-            <div class="chart-container">
-                <canvas id="chartPower"></canvas>
-            </div>
-        </div>
 
-        <!-- Figure 5: Thermal Zones -->
-        <div class="glass-card p-5 md:col-span-3" id="container-temp" ondblclick="toggleFullscreen('container-temp')">
-            <div class="flex justify-between items-start mb-4">
-                <div>
-                    <h3 class="text-slate-400 font-semibold text-xs uppercase tracking-wider">Thermal Zones (°C)</h3>
-                    <div class="flex gap-4 text-[10px] uppercase font-bold mono mt-1">
-                        <span class="text-rose-400">CPU</span> <span class="text-orange-400">VSkin</span> <span
-                            class="text-sky-400">USB</span>
-                    </div>
-                </div>
-                <button onclick="event.stopPropagation(); toggleFullscreen('container-temp')"
-                    class="expand-btn text-slate-500 hover:text-white">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="m15 3 6 6M9 21l-6-6M21 3l-6 6M3 21l6-6" />
-                    </svg>
+                <button onclick="Monitor.saveConfig()" class="px-5 py-2 bg-gray-800 text-white text-sm rounded-lg shadow-sm hover:bg-gray-700 transition-colors flex items-center gap-2 flex-shrink-0 font-medium">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                    Save
                 </button>
             </div>
-            <div class="chart-container">
-                <canvas id="chartTemp"></canvas>
-            </div>
-        </div>
-    </main>
+        </header>
+
+        <!-- Dynamic Content Areas -->
+        <div class="grid-layout mb-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3" id="area-cpu"></div>
+        <div class="grid-layout grid-cols-1 md:grid-cols-2" id="area-stats"></div>
+    </div>
 
     <script>
-        const HISTORY_LIMIT = 120; // Increased to 120 for 2 minutes
+        /**
+         * ==========================================
+         * 1. SYSTEM HARDWARE TOPOLOGY
+         * ==========================================
+         */
+        const CORES = { BIG: 1, MID: 4, LITTLE: 2 };
+        const HISTORY_LIMIT = 60; 
 
-        // Create labels from -119s to 0s
-        const labels = Array.from({ length: HISTORY_LIMIT }, (_, i) => {
-            const sec = (HISTORY_LIMIT - 1) - i;
-            return sec === 0 ? '0s' : `-${sec}s`;
-        });
-
-        let startTime = Date.now();
-
-        const clusters = {
-            big: { count: 2, label: 'Big', h: 354, s: 95, l: 71 },
-            mid: { count: 2, label: 'Mid', h: 27, s: 96, l: 61 },
-            little: { count: 4, label: 'Little', h: 142, s: 71, l: 58 }
+        /**
+         * ==========================================
+         * 2. CONFIGURATION & THEME
+         * ==========================================
+         */
+        const Theme = {
+            colors: {
+                lit: '#10b981', mid: '#f59e0b', big: '#ef4444',
+                temp: '#f97316', power: '#ec4899', fps: '#3b82f6'
+            },
+            styles: {
+                title: "text-sm tracking-wider whitespace-nowrap font-normal opacity-90",
+                statLabel: "text-[9px] text-gray-400 uppercase font-medium block"
+            }
         };
 
-        const chartCommonOptions = {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: {
-                    display: true,
-                    grid: { color: 'rgba(255,255,255,0.03)' },
-                    ticks: {
-                        color: '#475569',
-                        font: { size: 10 },
-                        maxRotation: 0,
-                        autoSkip: true,
-                        maxTicksLimit: 12
-                    }
+        const CONFIG = {
+            CLUSTERS: [
+                { id: 'little', name: 'Lit Cluster', color: Theme.colors.lit, cores: CORES.LITTLE, maxGHz: 1.8 },
+                { id: 'mid',    name: 'Mid Cluster', color: Theme.colors.mid, cores: CORES.MID,    maxGHz: 2.4 },
+                { id: 'big',    name: 'Big Cluster', color: Theme.colors.big, cores: CORES.BIG,    maxGHz: 3.2 }
+            ],
+            STATS: [
+                { 
+                    id: 'temp', title: 'Temperatures (°C)', color: Theme.colors.temp,
+                    readouts: [
+                        { id: 'temp-pkg', label: 'CPU Pkg', color: Theme.colors.temp, unit: '°C' },
+                        { id: 'temp-gpu', label: 'GPU Core', color: '#8b5cf6', unit: '°C' }
+                    ]
                 },
-                y: {
-                    grid: { color: 'rgba(255,255,255,0.05)' },
-                    ticks: { color: '#64748b', font: { size: 10 } }
+                { 
+                    id: 'power', title: 'Power Consumption (mW)', color: Theme.colors.power,
+                    readouts: [
+                        { id: 'power-pkg', label: 'Pkg', color: Theme.colors.power, unit: 'mW', area: true },
+                        { id: 'power-dram', label: 'DRAM', color: '#06b6d4', unit: 'mW', area: true }
+                    ]
+                },
+                { 
+                    id: 'fps', title: 'Frame Rate (FPS)', color: Theme.colors.fps,
+                    readouts: [{ id: 'fps', label: 'FPS', color: Theme.colors.fps, unit: '', area: true }]
+                },
+                { 
+                    id: 'eff', title: 'Efficiency (FPS/mW)', color: Theme.colors.lit,
+                    readouts: [{ id: 'eff', label: 'Eff', color: Theme.colors.lit, unit: '', area: true }]
                 }
+            ]
+        };
+
+        /**
+         * ==========================================
+         * 3. MONITOR ENGINE
+         * ==========================================
+         */
+        const Monitor = {
+            instances: {},
+            active: true,
+            timer: null,
+            timeline: Array(HISTORY_LIMIT).fill(''),
+
+            init() {
+                UI.buildCards();
+                this._setupCharts();
+                window.addEventListener('resize', () => Object.values(this.instances).forEach(i => i.resize()));
+                
+                setTimeout(() => Object.values(this.instances).forEach(i => i.resize()), 50);
+                setTimeout(() => Object.values(this.instances).forEach(i => i.resize()), 300);
+                
+                this.updateRate(1000);
+            },
+
+            toggleTracing() {
+                this.active = !this.active;
+                const badge = document.getElementById('device-status-badge');
+                const label = document.getElementById('tracing-label');
+                badge.classList.toggle('tracing-active', this.active);
+                badge.classList.toggle('tracing-inactive', !this.active);
+                label.innerText = this.active ? "(Live)" : "(Stopped)";
+            },
+
+            updateRate(ms) {
+                clearInterval(this.timer);
+                if (ms > 0) this.timer = setInterval(() => this._tick(), ms);
+            },
+
+            _tick() {
+                if (!this.active) return;
+                
+                const now = new Date().toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' });
+                this.timeline.shift();
+                this.timeline.push(now);
+
+                const rand = (min, range) => min + Math.random() * range;
+                const cpuLoad = (base) => Math.max(5, Math.min(95, base + (Math.random() - 0.5) * 40));
+
+                const data = {
+                    cpu: {
+                        little: Array.from({length: CORES.LITTLE}, () => ({ load: cpuLoad(10), freq: rand(0.4, 1.0) })),
+                        mid: Array.from({length: CORES.MID}, () => ({ load: cpuLoad(30), freq: rand(0.8, 1.2) })),
+                        big: Array.from({length: CORES.BIG}, () => ({ load: cpuLoad(60), freq: rand(1.8, 1.2) }))
+                    },
+                    temp: { pkg: rand(40, 20), gpu: rand(38, 15) },
+                    power: { pkg: rand(800, 1500), dram: rand(100, 400) },
+                    fps: rand(59, 2)
+                };
+
+                this._updateUI(data);
+            },
+
+            _updateUI(data) {
+                CONFIG.CLUSTERS.forEach(c => {
+                    const metrics = data.cpu[c.id];
+                    const avgL = (metrics.reduce((s, x) => s + x.load, 0) / c.cores).toFixed(2);
+                    const avgF = (metrics.reduce((s, x) => s + x.freq, 0) / c.cores).toFixed(2);
+                    const loadEl = document.getElementById(`val-${c.id}-load`);
+                    const freqEl = document.getElementById(`val-${c.id}-freq`);
+                    if (loadEl) loadEl.innerText = `${avgL}%`;
+                    if (freqEl) freqEl.innerText = `${avgF} GHz`;
+                    this._pushChartData(c.id, metrics.flatMap(m => [m.load, m.freq]));
+                });
+
+                const eff = data.power.pkg > 0 ? (data.fps / data.power.pkg) : 0;
+                const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+                
+                setVal('val-temp-pkg-cur', `${Math.round(data.temp.pkg)}°C`);
+                setVal('val-temp-gpu-cur', `${Math.round(data.temp.gpu)}°C`);
+                setVal('val-power-pkg-cur', `${Math.round(data.power.pkg)}mW`);
+                setVal('val-power-dram-cur', `${Math.round(data.power.dram)}mW`);
+                setVal('val-fps-cur', Math.round(data.fps));
+                setVal('val-eff-cur', eff.toFixed(2));
+
+                this._pushChartData('temp', [data.temp.pkg, data.temp.gpu]);
+                this._pushChartData('power', [data.power.pkg, data.power.dram]);
+                this._pushChartData('fps', [data.fps]);
+                this._pushChartData('eff', [eff]);
+            },
+
+            _pushChartData(key, values) {
+                const chart = this.instances[key];
+                if (!chart) return;
+                
+                const opt = chart.getOption();
+                const seriesUpdate = values.map((val, idx) => {
+                    const series = opt.series[idx];
+                    if (!series) return { data: [] };
+                    const data = series.data || [];
+                    data.shift();
+                    data.push(val);
+                    return { data };
+                });
+
+                chart.setOption({ xAxis: { data: this.timeline }, series: seriesUpdate });
+            },
+
+            _setupCharts() {
+                CONFIG.CLUSTERS.forEach(c => {
+                    const el = document.getElementById(`chart-${c.id}`);
+                    const inst = echarts.init(el);
+                    const series = [];
+                    for(let i=0; i<c.cores; i++) {
+                        series.push(
+                            { 
+                                name: `C${i+1} L`, 
+                                type: 'line', 
+                                showSymbol: false, 
+                                smooth: true, 
+                                lineStyle: { width: 1.2, color: c.color }, 
+                                data: Array(HISTORY_LIMIT).fill(0), 
+                                yAxisIndex: 0
+                            },
+                            { 
+                                name: `C${i+1} F`, 
+                                type: 'line', 
+                                showSymbol: false, 
+                                smooth: true, 
+                                areaStyle: { color: c.color, opacity: 0.05 }, 
+                                lineStyle: { width: 0.8, color: c.color, type: 'dotted' }, 
+                                data: Array(HISTORY_LIMIT).fill(0), 
+                                yAxisIndex: 1
+                            }
+                        );
+                    }
+                    inst.setOption(this._getSharedOptions({ 
+                        tooltip: {
+                            trigger: 'axis',
+                            confine: true,
+                            formatter: (params) => {
+                                let html = `<div class="p-1 min-w-[140px] text-xs font-light">`;
+                                html += `<div class="font-medium mb-1 border-b border-gray-100 pb-1">${params[0].axisValue}</div>`;
+                                
+                                const loadParams = params.filter(p => p.seriesName.endsWith('L'));
+                                const freqParams = params.filter(p => p.seriesName.endsWith('F'));
+
+                                if (loadParams.length > 0) {
+                                    html += `<div class="text-[10px] uppercase font-medium text-gray-400 mt-1 mb-1">Load Type (%)</div>`;
+                                    loadParams.forEach(p => {
+                                        html += `<div class="flex justify-between items-center gap-4">
+                                            <span>${p.marker} ${p.seriesName}</span>
+                                            <span class="font-mono font-medium">${p.value.toFixed(2)}%</span>
+                                        </div>`;
+                                    });
+                                }
+
+                                if (freqParams.length > 0) {
+                                    html += `<div class="text-[10px] uppercase font-medium text-gray-400 mt-2 mb-1">Freq (GHz)</div>`;
+                                    freqParams.forEach(p => {
+                                        html += `<div class="flex justify-between items-center gap-4">
+                                            <span>${p.marker} ${p.seriesName}</span>
+                                            <span class="font-mono font-medium">${p.value.toFixed(2)}</span>
+                                        </div>`;
+                                    });
+                                }
+
+                                html += `</div>`;
+                                return html;
+                            }
+                        },
+                        grid: { top: 30, left: 10, right: 15, bottom: 10, containLabel: true },
+                        yAxis: [
+                            { type: 'value', min: 0, max: 100, axisLabel: { formatter: '{value}%', fontWeight: 300 } },
+                            { type: 'value', min: 0, max: c.maxGHz, axisLabel: { formatter: (value) => value.toFixed(1), fontWeight: 300 }, splitLine: { show: false } }
+                        ],
+                        series 
+                    }));
+                    this.instances[c.id] = inst;
+                });
+
+                CONFIG.STATS.forEach(s => {
+                    const el = document.getElementById(`chart-${s.id}`);
+                    const inst = echarts.init(el);
+                    inst.setOption(this._getSharedOptions({
+                        yAxis: { scale: true, axisLabel: { formatter: `{value}${s.readouts[0].unit}`, fontWeight: 300 } },
+                        series: s.readouts.map(r => ({
+                            name: r.label, 
+                            type: 'line', 
+                            showSymbol: false, 
+                            smooth: true, 
+                            lineStyle: { width: 1.2 },
+                            itemStyle: { color: r.color }, 
+                            areaStyle: r.area ? { opacity: 0.05 } : null, 
+                            data: Array(HISTORY_LIMIT).fill(0),
+                            tooltip: { valueFormatter: (val) => val.toFixed(2) + (r.unit || '') }
+                        }))
+                    }));
+                    this.instances[s.id] = inst;
+                });
+            },
+
+            _getSharedOptions(ext) {
+                return {
+                    animation: false,
+                    tooltip: { 
+                        trigger: 'axis', 
+                        confine: true, 
+                        axisPointer: { animation: false } 
+                    },
+                    grid: { top: 30, left: 10, right: 10, bottom: 10, containLabel: true },
+                    xAxis: { type: 'category', data: this.timeline, boundaryGap: false, axisLabel: { show: false }, axisTick: { show: false }, axisLine: { show: false } },
+                    yAxis: { splitLine: { lineStyle: { type: 'dashed', color: '#e5e7eb' } }, axisLabel: { fontSize: 10, fontWeight: 300 } },
+                    ...ext
+                };
+            },
+
+            saveConfig() {
+                const btn = event.currentTarget;
+                btn.classList.add('bg-green-600');
+                setTimeout(() => btn.classList.remove('bg-green-600'), 2000);
             }
         };
 
-        // Layout Logic
-        function setLayout(mode) {
-            const cards = {
-                big: document.getElementById('container-big'),
-                mid: document.getElementById('container-mid'),
-                little: document.getElementById('container-little'),
-                power: document.getElementById('container-power'),
-                temp: document.getElementById('container-temp')
-            };
+        /**
+         * ==========================================
+         * 4. UI CONTROLLER
+         * ==========================================
+         */
+        const UI = {
+            buildCards() {
+                const cpuArea = document.getElementById('area-cpu');
+                const statArea = document.getElementById('area-stats');
 
-            document.querySelectorAll('.layout-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(`btn-${mode}`).classList.add('active');
+                CONFIG.CLUSTERS.forEach(c => {
+                    cpuArea.insertAdjacentHTML('beforeend', `
+                        <div class="chart-card bg-white p-5 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group">
+                            <div class="flex justify-between items-start mb-2 flex-nowrap">
+                                <h2 class="${Theme.styles.title}" style="color: ${c.color}">${c.name}</h2>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex gap-3 text-right">
+                                        <div><span class="${Theme.styles.statLabel}">Avg Load</span><div id="val-${c.id}-load" class="font-mono-stat text-xs font-medium" style="color: ${c.color}">--%</div></div>
+                                        <div class="border-l border-gray-100 pl-3">
+                                            <span class="${Theme.styles.statLabel}">Avg Freq</span>
+                                            <div id="val-${c.id}-freq" class="font-mono-stat text-[10px] px-1.5 py-0.5 mt-0.5 rounded font-medium" style="color: ${c.color}; background-color: ${c.color}15">-- GHz</div>
+                                        </div>
+                                    </div>
+                                    <button onclick="UI.toggleExpand(this, '${c.id}')" class="toggle-btn p-1 rounded-md hover:bg-gray-100 text-gray-400">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="chart-${c.id}" class="chart-container w-full"></div>
+                        </div>`);
+                });
 
-            Object.values(cards).forEach(card => {
-                card.classList.remove('md:col-span-1', 'md:col-span-2', 'md:col-span-3');
-            });
+                CONFIG.STATS.forEach(s => {
+                    statArea.insertAdjacentHTML('beforeend', `
+                        <div class="chart-card bg-white p-6 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group">
+                            <div class="flex justify-between items-start mb-4 flex-nowrap">
+                                <h2 class="${Theme.styles.title}" style="color: ${s.color}">${s.title}</h2>
+                                <div class="flex items-center gap-4">
+                                    <div class="flex gap-4">
+                                        ${s.readouts.map(r => `
+                                            <div class="text-right whitespace-nowrap">
+                                                <span class="${Theme.styles.statLabel}">${r.label}</span>
+                                                <div id="val-${r.id}-cur" class="font-mono-stat text-xs font-medium" style="color: ${r.color}">--${r.unit}</div>
+                                            </div>`).join('')}
+                                    </div>
+                                    <button onclick="UI.toggleExpand(this, '${s.id}')" class="toggle-btn p-1 rounded-md hover:bg-gray-100 text-gray-400">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="chart-${s.id}" class="chart-container w-full"></div>
+                        </div>`);
+                });
+            },
 
-            if (mode === 'standard') {
-                cards.big.classList.add('md:col-span-1');
-                cards.mid.classList.add('md:col-span-1');
-                cards.little.classList.add('md:col-span-1');
-                cards.power.classList.add('md:col-span-3');
-                cards.temp.classList.add('md:col-span-3');
-            } else if (mode === 'list') {
-                Object.values(cards).forEach(card => card.classList.add('md:col-span-3'));
-            } else if (mode === 'grid') {
-                Object.values(cards).forEach(card => card.classList.add('md:col-span-1'));
+            setLayout(mode) {
+                const isGrid = mode === 'grid';
+                ['area-cpu', 'area-stats'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.classList.toggle('grid-cols-1', !isGrid);
+                    if (id === 'area-cpu') {
+                        el.classList.toggle('md:grid-cols-2', isGrid);
+                        el.classList.toggle('lg:grid-cols-3', isGrid);
+                    } else {
+                        el.classList.toggle('md:grid-cols-2', isGrid);
+                    }
+                });
+                
+                const gridBtn = document.getElementById('btn-grid');
+                const listBtn = document.getElementById('btn-list');
+                if (gridBtn) gridBtn.className = isGrid ? 'px-4 py-1.5 rounded-md text-sm transition-all bg-blue-600 text-white' : 'px-4 py-1.5 text-sm transition-all text-gray-500';
+                if (listBtn) listBtn.className = !isGrid ? 'px-4 py-1.5 rounded-md text-sm transition-all bg-blue-600 text-white' : 'px-4 py-1.5 text-sm transition-all text-gray-500';
+                
+                setTimeout(() => Object.values(Monitor.instances).forEach(i => i.resize()), 150);
+            },
+
+            toggleExpand(btn, key) {
+                const card = btn.closest('.chart-card');
+                const isExpanded = card.classList.toggle('expanded');
+                document.body.classList.toggle('modal-open', isExpanded);
+                setTimeout(() => Monitor.instances[key]?.resize(), 300);
+            },
+
+            filterCharts(val) {
+                const query = val.toLowerCase().trim();
+                document.querySelectorAll('.chart-card').forEach(card => {
+                    const content = card.innerHTML.toLowerCase();
+                    card.classList.toggle('hidden', query !== '' && !content.includes(query));
+                });
+                setTimeout(() => Object.values(Monitor.instances).forEach(i => i.resize()), 150);
             }
+        };
 
-            setTimeout(() => {
-                Object.values(charts).forEach(chart => chart.resize());
-            }, 50);
-        }
+        Monitor.init();
 
-        // Fullscreen logic
-        function toggleFullscreen(containerId) {
-            const el = document.getElementById(containerId);
-            const isFull = el.classList.contains('fullscreen');
-
-            document.querySelectorAll('.glass-card').forEach(card => {
-                if (card.id !== containerId) card.classList.remove('fullscreen');
-            });
-
-            if (!isFull) {
-                el.classList.add('fullscreen');
-                document.body.style.overflow = 'hidden';
-            } else {
-                el.classList.remove('fullscreen');
-                document.body.style.overflow = 'auto';
-            }
-
-            setTimeout(() => {
-                Object.values(charts).forEach(chart => chart.resize());
-            }, 50);
-        }
-
-        window.addEventListener('keydown', (e) => {
+        document.addEventListener('keydown', e => {
             if (e.key === 'Escape') {
-                document.querySelectorAll('.glass-card').forEach(card => card.classList.remove('fullscreen'));
-                document.body.style.overflow = 'auto';
-                Object.values(charts).forEach(chart => chart.resize());
+                const expanded = document.querySelector('.chart-card.expanded');
+                if (expanded) {
+                    const btn = expanded.querySelector('.toggle-btn');
+                    const key = Object.keys(Monitor.instances).find(k => expanded.querySelector(`#chart-${k}`)) || 'fps';
+                    UI.toggleExpand(btn, key);
+                }
             }
         });
-
-        const initClusterChart = (id, cluster) => {
-            const ctx = document.getElementById(id).getContext('2d');
-            const datasets = [];
-            for (let i = 0; i < cluster.count; i++) {
-                const l = cluster.l - (i * 8);
-                const s = cluster.s - (i * 5);
-                const borderColor = `hsl(${cluster.h}, ${s}%, ${l}%)`;
-
-                datasets.push({
-                    label: `${cluster.label} Core ${i}`,
-                    data: Array(HISTORY_LIMIT).fill(0),
-                    borderColor: borderColor,
-                    borderWidth: 1.5,
-                    pointRadius: 0,
-                    tension: 0.4,
-                    backgroundColor: 'transparent'
-                });
-            }
-            return new Chart(ctx, {
-                type: 'line',
-                data: { labels, datasets },
-                options: {
-                    ...chartCommonOptions,
-                    scales: {
-                        ...chartCommonOptions.scales,
-                        y: { ...chartCommonOptions.scales.y, min: 0, max: 100, ticks: { ...chartCommonOptions.scales.y.ticks, stepSize: 25 } }
-                    }
-                }
-            });
-        };
-
-        const initPowerChart = () => {
-            const ctx = document.getElementById('chartPower').getContext('2d');
-            return new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels,
-                    datasets: [
-                        { label: 'CPU', data: Array(HISTORY_LIMIT).fill(0), borderColor: '#38bdf8', borderWidth: 2, pointRadius: 0, tension: 0.3 },
-                        { label: 'GPU', data: Array(HISTORY_LIMIT).fill(0), borderColor: '#c084fc', borderWidth: 2, pointRadius: 0, tension: 0.3 },
-                        { label: 'MEM', data: Array(HISTORY_LIMIT).fill(0), borderColor: '#4ade80', borderWidth: 2, pointRadius: 0, tension: 0.3 }
-                    ]
-                },
-                options: {
-                    ...chartCommonOptions,
-                    scales: {
-                        ...chartCommonOptions.scales,
-                        y: { ...chartCommonOptions.scales.y, min: 0, max: 150 }
-                    }
-                }
-            });
-        };
-
-        const initTempChart = () => {
-            const ctx = document.getElementById('chartTemp').getContext('2d');
-            return new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels,
-                    datasets: [
-                        { label: 'CPU', data: Array(HISTORY_LIMIT).fill(0), borderColor: '#fb7185', borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true, backgroundColor: 'rgba(251, 113, 133, 0.05)' },
-                        { label: 'VSkin', data: Array(HISTORY_LIMIT).fill(0), borderColor: '#fb923c', borderWidth: 2, pointRadius: 0, tension: 0.3 },
-                        { label: 'USB', data: Array(HISTORY_LIMIT).fill(0), borderColor: '#38bdf8', borderWidth: 2, pointRadius: 0, tension: 0.3 }
-                    ]
-                },
-                options: {
-                    ...chartCommonOptions,
-                    scales: {
-                        ...chartCommonOptions.scales,
-                        y: { ...chartCommonOptions.scales.y, min: 20, max: 100 }
-                    }
-                }
-            });
-        };
-
-        const charts = {
-            big: initClusterChart('chartBig', clusters.big),
-            mid: initClusterChart('chartMid', clusters.mid),
-            little: initClusterChart('chartLittle', clusters.little),
-            power: initPowerChart(),
-            temp: initTempChart()
-        };
-
-        function updateData() {
-            const diff = Math.floor((Date.now() - startTime) / 1000);
-            const hrs = String(Math.floor(diff / 3600)).padStart(2, '0');
-            const mins = String(Math.floor((diff % 3600) / 60)).padStart(2, '0');
-            const secs = String(diff % 60).padStart(2, '0');
-            const timerEl = document.getElementById('timer');
-            if (timerEl) timerEl.innerText = `${hrs}:${mins}:${secs}`;
-
-            const systemActivity = 15 + Math.sin(diff / 10) * 10 + Math.random() * 5;
-            const gpuActivity = 5 + Math.cos(diff / 8) * 15 + Math.random() * 10;
-
-            let cpuPower = 2;
-            let cpuTempBase = 35;
-
-            Object.keys(clusters).forEach(key => {
-                const cluster = clusters[key];
-                const chart = charts[key];
-                let clusterSum = 0;
-
-                chart.data.datasets.forEach((ds) => {
-                    let load = systemActivity;
-                    if (key === 'big') load *= (1.8 + Math.random() * 0.4);
-                    if (key === 'little') load *= 0.5;
-
-                    const finalVal = Math.min(100, Math.max(0, load + (Math.random() * 15)));
-                    ds.data.shift();
-                    ds.data.push(finalVal);
-                    clusterSum += finalVal;
-
-                    cpuPower += (finalVal * (key === 'big' ? 0.6 : 0.15));
-                    cpuTempBase += (finalVal * (key === 'big' ? 0.3 : 0.05)) / 8;
-                });
-                const statEl = document.getElementById(`stat-${key}`);
-                if (statEl) statEl.innerText = `Avg: ${Math.round(clusterSum / cluster.count)}%`;
-                chart.update('none');
-            });
-
-            const gpuPower = 3 + (gpuActivity * 1.1);
-            const memPower = 4 + (systemActivity * 0.15) + (Math.random() * 2);
-            const powerData = [cpuPower, gpuPower, memPower];
-            charts.power.data.datasets.forEach((ds, i) => {
-                ds.data.shift();
-                ds.data.push(powerData[i]);
-            });
-            charts.power.update('none');
-
-            const cpuTemp = cpuTempBase + (gpuActivity * 0.15);
-            const vskinTemp = 28 + (cpuTemp * 0.2) + (Math.random() * 1);
-            const usbTemp = 25 + (systemActivity * 0.05) + (Math.random() * 0.5);
-            const tempData = [cpuTemp, vskinTemp, usbTemp];
-            charts.temp.data.datasets.forEach((ds, i) => {
-                ds.data.shift();
-                ds.data.push(tempData[i]);
-            });
-            charts.temp.update('none');
-        }
-
-        setInterval(updateData, 1000);
-        window.onload = updateData;
     </script>
 </body>
-
 </html>

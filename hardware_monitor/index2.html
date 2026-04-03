@@ -108,7 +108,7 @@
                 temp: '#f97316', power: '#ec4899', fps: '#3b82f6'
             },
             styles: {
-                title: "text-sm font-bold uppercase tracking-wider whitespace-nowrap",
+                title: "text-sm tracking-wider whitespace-nowrap",
                 statLabel: "text-[9px] text-gray-400 uppercase font-bold block"
             }
         };
@@ -161,7 +161,8 @@
                 this._setupCharts();
                 window.addEventListener('resize', () => Object.values(this.instances).forEach(i => i.resize()));
                 
-                setTimeout(() => Object.values(this.instances).forEach(i => i.resize()), 100);
+                setTimeout(() => Object.values(this.instances).forEach(i => i.resize()), 50);
+                setTimeout(() => Object.values(this.instances).forEach(i => i.resize()), 300);
                 
                 this.updateRate(1000);
             },
@@ -207,7 +208,7 @@
             _updateUI(data) {
                 CONFIG.CLUSTERS.forEach(c => {
                     const metrics = data.cpu[c.id];
-                    const avgL = Math.round(metrics.reduce((s, x) => s + x.load, 0) / c.cores);
+                    const avgL = (metrics.reduce((s, x) => s + x.load, 0) / c.cores).toFixed(2);
                     const avgF = (metrics.reduce((s, x) => s + x.freq, 0) / c.cores).toFixed(2);
                     const loadEl = document.getElementById(`val-${c.id}-load`);
                     const freqEl = document.getElementById(`val-${c.id}-freq`);
@@ -256,12 +257,65 @@
                     const series = [];
                     for(let i=0; i<c.cores; i++) {
                         series.push(
-                            { name: `C${i+1} L`, type: 'line', showSymbol: false, smooth: true, lineStyle: { width: 2, color: c.color }, data: Array(HISTORY_LIMIT).fill(0), yAxisIndex: 0 },
-                            { name: `C${i+1} F`, type: 'line', showSymbol: false, smooth: true, areaStyle: { color: c.color, opacity: 0.05 }, lineStyle: { width: 1, color: c.color, type: 'dotted' }, data: Array(HISTORY_LIMIT).fill(0), yAxisIndex: 1 }
+                            { 
+                                name: `C${i+1} L`, 
+                                type: 'line', 
+                                showSymbol: false, 
+                                smooth: true, 
+                                lineStyle: { width: 1.2, color: c.color }, 
+                                data: Array(HISTORY_LIMIT).fill(0), 
+                                yAxisIndex: 0,
+                                tooltip: { valueFormatter: (val) => val.toFixed(2) + '%' }
+                            },
+                            { 
+                                name: `C${i+1} F`, 
+                                type: 'line', 
+                                showSymbol: false, 
+                                smooth: true, 
+                                areaStyle: { color: c.color, opacity: 0.05 }, 
+                                lineStyle: { width: 0.8, color: c.color, type: 'dotted' }, 
+                                data: Array(HISTORY_LIMIT).fill(0), 
+                                yAxisIndex: 1,
+                                tooltip: { valueFormatter: (val) => val.toFixed(2) + ' GHz' }
+                            }
                         );
                     }
                     inst.setOption(this._getSharedOptions({ 
-                        grid: { top: 30, left: 10, right: 10, bottom: 10, containLabel: true },
+                        tooltip: {
+                            trigger: 'axis',
+                            confine: true, // Forces tooltip to stay inside chart area
+                            formatter: (params) => {
+                                let html = `<div class="p-1 min-w-[140px] text-xs">`;
+                                html += `<div class="font-bold mb-1 border-b border-gray-100 pb-1">${params[0].axisValue}</div>`;
+                                
+                                const loadParams = params.filter(p => p.seriesName.endsWith('L'));
+                                const freqParams = params.filter(p => p.seriesName.endsWith('F'));
+
+                                if (loadParams.length > 0) {
+                                    html += `<div class="text-[10px] uppercase font-bold text-gray-400 mt-1 mb-1">Load (%)</div>`;
+                                    loadParams.forEach(p => {
+                                        html += `<div class="flex justify-between items-center gap-4">
+                                            <span>${p.marker} ${p.seriesName}</span>
+                                            <span class="font-mono font-bold">${p.value.toFixed(2)}%</span>
+                                        </div>`;
+                                    });
+                                }
+
+                                if (freqParams.length > 0) {
+                                    html += `<div class="text-[10px] uppercase font-bold text-gray-400 mt-2 mb-1">Freq (GHz)</div>`;
+                                    freqParams.forEach(p => {
+                                        html += `<div class="flex justify-between items-center gap-4">
+                                            <span>${p.marker} ${p.seriesName}</span>
+                                            <span class="font-mono font-bold">${p.value.toFixed(2)} GHz</span>
+                                        </div>`;
+                                    });
+                                }
+
+                                html += `</div>`;
+                                return html;
+                            }
+                        },
+                        grid: { top: 30, left: 10, right: 15, bottom: 10, containLabel: true },
                         yAxis: [
                             { type: 'value', min: 0, max: 100, axisLabel: { formatter: '{value}%' } },
                             { type: 'value', min: 0, max: c.maxGHz, axisLabel: { formatter: (value) => value.toFixed(1) }, splitLine: { show: false } }
@@ -277,8 +331,14 @@
                     inst.setOption(this._getSharedOptions({
                         yAxis: { scale: true, axisLabel: { formatter: `{value}${s.readouts[0].unit}` } },
                         series: s.readouts.map(r => ({
-                            name: r.label, type: 'line', showSymbol: false, smooth: true, itemStyle: { color: r.color }, 
-                            areaStyle: r.area ? { opacity: 0.05 } : null, data: Array(HISTORY_LIMIT).fill(0),
+                            name: r.label, 
+                            type: 'line', 
+                            showSymbol: false, 
+                            smooth: true, 
+                            lineStyle: { width: 1.2 },
+                            itemStyle: { color: r.color }, 
+                            areaStyle: r.area ? { opacity: 0.05 } : null, 
+                            data: Array(HISTORY_LIMIT).fill(0),
                             tooltip: { valueFormatter: (val) => val.toFixed(2) + (r.unit || '') }
                         }))
                     }));
@@ -289,7 +349,11 @@
             _getSharedOptions(ext) {
                 return {
                     animation: false,
-                    tooltip: { trigger: 'axis', axisPointer: { animation: false } },
+                    tooltip: { 
+                        trigger: 'axis', 
+                        confine: true, // Global safety for tooltips
+                        axisPointer: { animation: false } 
+                    },
                     grid: { top: 30, left: 10, right: 10, bottom: 10, containLabel: true },
                     xAxis: { type: 'category', data: this.timeline, boundaryGap: false, axisLabel: { show: false }, axisTick: { show: false }, axisLine: { show: false } },
                     yAxis: { splitLine: { lineStyle: { type: 'dashed', color: '#e5e7eb' } }, axisLabel: { fontSize: 10 } },
@@ -324,7 +388,6 @@
                                         <div><span class="${Theme.styles.statLabel}">Avg Load</span><div id="val-${c.id}-load" class="font-mono-stat text-xs font-bold" style="color: ${c.color}">--%</div></div>
                                         <div class="border-l border-gray-100 pl-3">
                                             <span class="${Theme.styles.statLabel}">Avg Freq</span>
-                                            <!-- Styled with matching background to indicate the "Filled Area" data series -->
                                             <div id="val-${c.id}-freq" class="font-mono-stat text-[10px] px-1.5 py-0.5 mt-0.5 rounded font-bold" style="color: ${c.color}; background-color: ${c.color}15">-- GHz</div>
                                         </div>
                                     </div>

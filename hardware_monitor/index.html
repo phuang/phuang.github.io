@@ -214,13 +214,16 @@
             _updateUI(data) {
                 CONFIG.CLUSTERS.forEach(c => {
                     const metrics = data.cpu[c.id];
-                    const avgL = (metrics.reduce((s, x) => s + x.load, 0) / c.cores).toFixed(2);
-                    const avgF = (metrics.reduce((s, x) => s + x.freq, 0) / c.cores).toFixed(2);
+                    const avgL = parseFloat((metrics.reduce((s, x) => s + x.load, 0) / c.cores).toFixed(2));
+                    const avgF = parseFloat((metrics.reduce((s, x) => s + x.freq, 0) / c.cores).toFixed(2));
+                    
                     const loadEl = document.getElementById(`val-${c.id}-load`);
                     const freqEl = document.getElementById(`val-${c.id}-freq`);
-                    if (loadEl) loadEl.innerText = `${avgL}%`;
-                    if (freqEl) freqEl.innerText = `${avgF} GHz`;
-                    this._pushChartData(c.id, metrics.flatMap(m => [m.load, m.freq]));
+                    if (loadEl) loadEl.innerText = `${avgL.toFixed(2)}%`;
+                    if (freqEl) freqEl.innerText = `${avgF.toFixed(2)} GHz`;
+                    
+                    // Only pushing 2 values now: avg load and avg freq
+                    this._pushChartData(c.id, [avgL, avgF]);
                 });
 
                 const eff = data.power.pkg > 0 ? (data.fps / data.power.pkg) : 0;
@@ -260,32 +263,30 @@
                 CONFIG.CLUSTERS.forEach(c => {
                     const el = document.getElementById(`chart-${c.id}`);
                     const inst = echarts.init(el);
-                    const series = [];
-                    for(let i=0; i<c.cores; i++) {
-                        series.push(
-                            { 
-                                name: `C${i+1} L`, 
-                                type: 'line', 
-                                showSymbol: false, 
-                                smooth: true, 
-                                lineStyle: { width: 1.2, color: c.color }, 
-                                data: Array(HISTORY_LIMIT).fill(0), 
-                                yAxisIndex: 0,
-                                tooltip: { valueFormatter: (val) => val.toFixed(2) + '%' }
-                            },
-                            { 
-                                name: `C${i+1} F`, 
-                                type: 'line', 
-                                showSymbol: false, 
-                                smooth: true, 
-                                areaStyle: { color: c.color, opacity: 0.05 }, 
-                                lineStyle: { width: 0.8, color: c.color, type: 'dotted' }, 
-                                data: Array(HISTORY_LIMIT).fill(0), 
-                                yAxisIndex: 1,
-                                tooltip: { valueFormatter: (val) => val.toFixed(2) + ' GHz' }
-                            }
-                        );
-                    }
+                    const series = [
+                        // Consolidated Avg Load
+                        { 
+                            name: `Avg Load`, 
+                            type: 'line', 
+                            showSymbol: false, 
+                            smooth: true, 
+                            lineStyle: { width: 1.2, color: c.color, type: 'dashed' }, 
+                            data: Array(HISTORY_LIMIT).fill(0), 
+                            yAxisIndex: 0
+                        },
+                        // Consolidated Avg Freq
+                        { 
+                            name: `Avg Freq`, 
+                            type: 'line', 
+                            showSymbol: false, 
+                            smooth: true, 
+                            areaStyle: { color: c.color, opacity: 0.1 }, 
+                            lineStyle: { width: 1.5, color: c.color, type: 'solid' }, 
+                            data: Array(HISTORY_LIMIT).fill(0), 
+                            yAxisIndex: 1
+                        }
+                    ];
+
                     inst.setOption(this._getSharedOptions({ 
                         tooltip: {
                             trigger: 'axis',
@@ -293,20 +294,15 @@
                             formatter: (params) => {
                                 let html = `<div class="p-1 min-w-[140px] text-xs font-light">`;
                                 html += `<div class="font-medium mb-1 border-b border-gray-100 pb-1">${params[0].axisValue}</div>`;
-                                const loadParams = params.filter(p => p.seriesName.endsWith('L'));
-                                const freqParams = params.filter(p => p.seriesName.endsWith('F'));
-                                if (loadParams.length > 0) {
-                                    html += `<div class="text-[10px] uppercase font-medium text-gray-400 mt-1 mb-1">Load Type (%)</div>`;
-                                    loadParams.forEach(p => {
-                                        html += `<div class="flex justify-between items-center gap-4"><span>${p.marker} ${p.seriesName}</span><span class="font-mono font-medium">${p.value.toFixed(2)}%</span></div>`;
-                                    });
-                                }
-                                if (freqParams.length > 0) {
-                                    html += `<div class="text-[10px] uppercase font-medium text-gray-400 mt-2 mb-1">Freq (GHz)</div>`;
-                                    freqParams.forEach(p => {
-                                        html += `<div class="flex justify-between items-center gap-4"><span>${p.marker} ${p.seriesName}</span><span class="font-mono font-medium">${p.value.toFixed(2)}</span></div>`;
-                                    });
-                                }
+                                
+                                params.forEach(p => {
+                                    const unit = p.seriesName.includes('Load') ? '%' : ' GHz';
+                                    html += `<div class="flex justify-between items-center gap-4 mt-1">
+                                        <span>${p.marker} ${p.seriesName}</span>
+                                        <span class="font-mono font-medium">${p.value.toFixed(2)}${unit}</span>
+                                    </div>`;
+                                });
+
                                 html += `</div>`;
                                 return html;
                             }
@@ -339,7 +335,7 @@
             _getSharedOptions(ext) {
                 return {
                     animation: false,
-                    legend: { show: false, selectedMode: 'multiple' }, // Internal hidden legend for visibility tracking
+                    legend: { show: false, selectedMode: 'multiple' },
                     tooltip: { trigger: 'axis', confine: true, axisPointer: { animation: false } },
                     grid: { top: 30, left: 10, right: 10, bottom: 10, containLabel: true },
                     xAxis: { type: 'category', data: this.timeline, boundaryGap: false, axisLabel: { show: false }, axisTick: { show: false }, axisLine: { show: false } },
@@ -372,11 +368,11 @@
                                 <h2 class="${Theme.styles.title}" style="color: ${c.color}">${c.name}</h2>
                                 <div class="flex items-center gap-3">
                                     <div class="flex gap-3 text-right">
-                                        <div class="metric-label" onclick="UI.toggleClusterMetric(this, '${c.id}', 'L')">
+                                        <div class="metric-label" onclick="UI.toggleClusterMetric(this, '${c.id}', 'Avg Load')">
                                             <span class="${Theme.styles.statLabel}">Avg Load</span>
                                             <div id="val-${c.id}-load" class="font-mono-stat text-xs font-medium" style="color: ${c.color}">--%</div>
                                         </div>
-                                        <div class="border-l border-gray-100 pl-3 metric-label" onclick="UI.toggleClusterMetric(this, '${c.id}', 'F')">
+                                        <div class="border-l border-gray-100 pl-3 metric-label" onclick="UI.toggleClusterMetric(this, '${c.id}', 'Avg Freq')">
                                             <span class="${Theme.styles.statLabel}">Avg Freq</span>
                                             <div id="val-${c.id}-freq" class="font-mono-stat text-[10px] px-1.5 py-0.5 mt-0.5 rounded font-medium" style="color: ${c.color}; background-color: ${c.color}15">-- GHz</div>
                                         </div>
@@ -413,20 +409,15 @@
                 });
             },
 
-            toggleClusterMetric(el, chartId, typeSuffix) {
+            toggleClusterMetric(el, chartId, seriesName) {
                 const chart = Monitor.instances[chartId];
                 if (!chart) return;
                 const isHiding = !el.classList.contains('inactive');
                 el.classList.toggle('inactive', isHiding);
                 
-                const opt = chart.getOption();
-                const names = opt.series.filter(s => s.name.endsWith(' ' + typeSuffix)).map(s => s.name);
-                
-                names.forEach(name => {
-                    chart.dispatchAction({
-                        type: isHiding ? 'legendUnSelect' : 'legendSelect',
-                        name: name
-                    });
+                chart.dispatchAction({
+                    type: isHiding ? 'legendUnSelect' : 'legendSelect',
+                    name: seriesName
                 });
             },
 

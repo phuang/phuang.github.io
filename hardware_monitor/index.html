@@ -55,8 +55,8 @@
             <div class="flex flex-wrap items-center gap-3 flex-1">
                 <!-- View Mode Toggle -->
                 <div class="flex bg-white rounded-lg shadow-sm border border-gray-100 p-1 flex-shrink-0">
-                    <button id="btn-grid" onclick="UI.setLayout('grid')" class="px-4 py-1.5 rounded-md text-sm transition-all bg-blue-600 text-white">Grid</button>
-                    <button id="btn-list" onclick="UI.setLayout('list')" class="px-4 py-1.5 rounded-md text-sm transition-all text-gray-500 hover:text-gray-700">List</button>
+                    <button id="btn-grid" onclick="UI.setLayout('grid')" class="px-4 py-1.5 rounded-md text-sm transition-all bg-blue-600 text-white shadow-sm">Grid</button>
+                    <button id="btn-list" onclick="UI.setLayout('list')" class="px-4 py-1.5 rounded-md text-sm transition-all text-gray-400">List</button>
                 </div>
 
                 <!-- Live Search Filter -->
@@ -222,7 +222,6 @@
                     if (loadEl) loadEl.innerText = `${avgL.toFixed(2)}%`;
                     if (freqEl) freqEl.innerText = `${avgF.toFixed(2)} GHz`;
                     
-                    // Only pushing 2 values now: avg load and avg freq
                     this._pushChartData(c.id, [avgL, avgF]);
                 });
 
@@ -264,23 +263,23 @@
                     const el = document.getElementById(`chart-${c.id}`);
                     const inst = echarts.init(el);
                     const series = [
-                        // Consolidated Avg Load
+                        // Consolidated Avg Load - Filled Area
                         { 
                             name: `Avg Load`, 
                             type: 'line', 
                             showSymbol: false, 
                             smooth: true, 
-                            lineStyle: { width: 1.2, color: c.color, type: 'dashed' }, 
+                            areaStyle: { color: c.color, opacity: 0.2 }, 
+                            lineStyle: { width: 1.2, color: c.color, opacity: 0.2, type: 'solid' }, 
                             data: Array(HISTORY_LIMIT).fill(0), 
                             yAxisIndex: 0
                         },
-                        // Consolidated Avg Freq
+                        // Consolidated Avg Freq - Solid Prominent Line
                         { 
                             name: `Avg Freq`, 
                             type: 'line', 
                             showSymbol: false, 
                             smooth: true, 
-                            areaStyle: { color: c.color, opacity: 0.1 }, 
                             lineStyle: { width: 1.5, color: c.color, type: 'solid' }, 
                             data: Array(HISTORY_LIMIT).fill(0), 
                             yAxisIndex: 1
@@ -294,15 +293,10 @@
                             formatter: (params) => {
                                 let html = `<div class="p-1 min-w-[140px] text-xs font-light">`;
                                 html += `<div class="font-medium mb-1 border-b border-gray-100 pb-1">${params[0].axisValue}</div>`;
-                                
                                 params.forEach(p => {
                                     const unit = p.seriesName.includes('Load') ? '%' : ' GHz';
-                                    html += `<div class="flex justify-between items-center gap-4 mt-1">
-                                        <span>${p.marker} ${p.seriesName}</span>
-                                        <span class="font-mono font-medium">${p.value.toFixed(2)}${unit}</span>
-                                    </div>`;
+                                    html += `<div class="flex justify-between items-center gap-4 mt-1"><span>${p.marker} ${p.seriesName}</span><span class="font-mono font-medium">${p.value.toFixed(2)}${unit}</span></div>`;
                                 });
-
                                 html += `</div>`;
                                 return html;
                             }
@@ -370,11 +364,11 @@
                                     <div class="flex gap-3 text-right">
                                         <div class="metric-label" onclick="UI.toggleClusterMetric(this, '${c.id}', 'Avg Load')">
                                             <span class="${Theme.styles.statLabel}">Avg Load</span>
-                                            <div id="val-${c.id}-load" class="font-mono-stat text-xs font-medium" style="color: ${c.color}">--%</div>
+                                            <div id="val-${c.id}-load" class="font-mono-stat text-[10px] px-1.5 py-0 mt-0.5 rounded font-medium flex items-center justify-end" style="color: ${c.color}; background-color: ${c.color}15; min-width: 48px; height: 1.2rem">--%</div>
                                         </div>
                                         <div class="border-l border-gray-100 pl-3 metric-label" onclick="UI.toggleClusterMetric(this, '${c.id}', 'Avg Freq')">
                                             <span class="${Theme.styles.statLabel}">Avg Freq</span>
-                                            <div id="val-${c.id}-freq" class="font-mono-stat text-[10px] px-1.5 py-0.5 mt-0.5 rounded font-medium" style="color: ${c.color}; background-color: ${c.color}15">-- GHz</div>
+                                            <div id="val-${c.id}-freq" class="font-mono-stat text-[10px] px-1.5 py-0 mt-0.5 rounded font-medium flex items-center justify-end" style="color: ${c.color}; min-width: 58px; height: 1.2rem">-- GHz</div>
                                         </div>
                                     </div>
                                     <button onclick="UI.toggleExpand(this, '${c.id}')" class="toggle-btn p-1 rounded-md hover:bg-gray-100 text-gray-400">
@@ -391,12 +385,13 @@
                         <div class="chart-card bg-white p-6 rounded-xl shadow-sm border border-gray-100 min-w-0 overflow-hidden group">
                             <div class="flex justify-between items-start mb-4 flex-nowrap">
                                 <h2 class="${Theme.styles.title}" style="color: ${s.color}">${s.title}</h2>
-                                <div class="flex items-center gap-4">
-                                    <div class="flex gap-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex gap-3 text-right">
                                         ${s.readouts.map((r, idx) => `
-                                            <div class="text-right whitespace-nowrap metric-label" onclick="UI.toggleStatMetric(this, '${s.id}', ${idx})">
+                                            <div class="metric-label ${idx > 0 ? 'border-l border-gray-100 pl-3' : ''}" onclick="UI.toggleStatMetric(this, '${s.id}', ${idx})">
                                                 <span class="${Theme.styles.statLabel}">${r.label}</span>
-                                                <div id="val-${r.id}-cur" class="font-mono-stat text-xs font-medium" style="color: ${r.color}">--${r.unit}</div>
+                                                <div id="val-${r.id}-cur" class="font-mono-stat text-[10px] px-1.5 py-0 mt-0.5 rounded font-medium flex items-center justify-end" 
+                                                     style="color: ${r.color}; height: 1.2rem; min-width: 48px; ${r.area ? `background-color: ${r.color}15` : ''}">--${r.unit}</div>
                                             </div>`).join('')}
                                     </div>
                                     <button onclick="UI.toggleExpand(this, '${s.id}')" class="toggle-btn p-1 rounded-md hover:bg-gray-100 text-gray-400">
@@ -414,11 +409,7 @@
                 if (!chart) return;
                 const isHiding = !el.classList.contains('inactive');
                 el.classList.toggle('inactive', isHiding);
-                
-                chart.dispatchAction({
-                    type: isHiding ? 'legendUnSelect' : 'legendSelect',
-                    name: seriesName
-                });
+                chart.dispatchAction({ type: isHiding ? 'legendUnSelect' : 'legendSelect', name: seriesName });
             },
 
             toggleStatMetric(el, chartId, seriesIdx) {
@@ -426,14 +417,9 @@
                 if (!chart) return;
                 const isHiding = !el.classList.contains('inactive');
                 el.classList.toggle('inactive', isHiding);
-                
                 const opt = chart.getOption();
                 const name = opt.series[seriesIdx].name;
-                
-                chart.dispatchAction({
-                    type: isHiding ? 'legendUnSelect' : 'legendSelect',
-                    name: name
-                });
+                chart.dispatchAction({ type: isHiding ? 'legendUnSelect' : 'legendSelect', name: name });
             },
 
             setLayout(mode) {

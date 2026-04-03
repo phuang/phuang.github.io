@@ -35,6 +35,12 @@
         .tracing-active .status-dot { color: #4ade80; }
         .tracing-inactive .status-dot { color: #f87171; opacity: 0.6; }
         .tracing-inactive { filter: grayscale(0.5); opacity: 0.8; }
+
+        /* Metric Toggling */
+        .metric-label { transition: all 0.2s; cursor: pointer; user-select: none; }
+        .metric-label:hover { opacity: 0.7; transform: translateY(-1px); }
+        .metric-label:active { transform: translateY(0px); }
+        .metric-label.inactive { opacity: 0.25 !important; filter: grayscale(1); }
     </style>
 </head>
 <body class="p-4 md:p-8 text-gray-700">
@@ -264,7 +270,8 @@
                                 smooth: true, 
                                 lineStyle: { width: 1.2, color: c.color }, 
                                 data: Array(HISTORY_LIMIT).fill(0), 
-                                yAxisIndex: 0
+                                yAxisIndex: 0,
+                                tooltip: { valueFormatter: (val) => val.toFixed(2) + '%' }
                             },
                             { 
                                 name: `C${i+1} F`, 
@@ -274,7 +281,8 @@
                                 areaStyle: { color: c.color, opacity: 0.05 }, 
                                 lineStyle: { width: 0.8, color: c.color, type: 'dotted' }, 
                                 data: Array(HISTORY_LIMIT).fill(0), 
-                                yAxisIndex: 1
+                                yAxisIndex: 1,
+                                tooltip: { valueFormatter: (val) => val.toFixed(2) + ' GHz' }
                             }
                         );
                     }
@@ -285,30 +293,20 @@
                             formatter: (params) => {
                                 let html = `<div class="p-1 min-w-[140px] text-xs font-light">`;
                                 html += `<div class="font-medium mb-1 border-b border-gray-100 pb-1">${params[0].axisValue}</div>`;
-                                
                                 const loadParams = params.filter(p => p.seriesName.endsWith('L'));
                                 const freqParams = params.filter(p => p.seriesName.endsWith('F'));
-
                                 if (loadParams.length > 0) {
                                     html += `<div class="text-[10px] uppercase font-medium text-gray-400 mt-1 mb-1">Load Type (%)</div>`;
                                     loadParams.forEach(p => {
-                                        html += `<div class="flex justify-between items-center gap-4">
-                                            <span>${p.marker} ${p.seriesName}</span>
-                                            <span class="font-mono font-medium">${p.value.toFixed(2)}%</span>
-                                        </div>`;
+                                        html += `<div class="flex justify-between items-center gap-4"><span>${p.marker} ${p.seriesName}</span><span class="font-mono font-medium">${p.value.toFixed(2)}%</span></div>`;
                                     });
                                 }
-
                                 if (freqParams.length > 0) {
                                     html += `<div class="text-[10px] uppercase font-medium text-gray-400 mt-2 mb-1">Freq (GHz)</div>`;
                                     freqParams.forEach(p => {
-                                        html += `<div class="flex justify-between items-center gap-4">
-                                            <span>${p.marker} ${p.seriesName}</span>
-                                            <span class="font-mono font-medium">${p.value.toFixed(2)}</span>
-                                        </div>`;
+                                        html += `<div class="flex justify-between items-center gap-4"><span>${p.marker} ${p.seriesName}</span><span class="font-mono font-medium">${p.value.toFixed(2)}</span></div>`;
                                     });
                                 }
-
                                 html += `</div>`;
                                 return html;
                             }
@@ -329,14 +327,8 @@
                     inst.setOption(this._getSharedOptions({
                         yAxis: { scale: true, axisLabel: { formatter: `{value}${s.readouts[0].unit}`, fontWeight: 300 } },
                         series: s.readouts.map(r => ({
-                            name: r.label, 
-                            type: 'line', 
-                            showSymbol: false, 
-                            smooth: true, 
-                            lineStyle: { width: 1.2 },
-                            itemStyle: { color: r.color }, 
-                            areaStyle: r.area ? { opacity: 0.05 } : null, 
-                            data: Array(HISTORY_LIMIT).fill(0),
+                            name: r.label, type: 'line', showSymbol: false, smooth: true, lineStyle: { width: 1.2 },
+                            itemStyle: { color: r.color }, areaStyle: r.area ? { opacity: 0.05 } : null, data: Array(HISTORY_LIMIT).fill(0),
                             tooltip: { valueFormatter: (val) => val.toFixed(2) + (r.unit || '') }
                         }))
                     }));
@@ -347,11 +339,8 @@
             _getSharedOptions(ext) {
                 return {
                     animation: false,
-                    tooltip: { 
-                        trigger: 'axis', 
-                        confine: true, 
-                        axisPointer: { animation: false } 
-                    },
+                    legend: { show: false, selectedMode: 'multiple' }, // Internal hidden legend for visibility tracking
+                    tooltip: { trigger: 'axis', confine: true, axisPointer: { animation: false } },
                     grid: { top: 30, left: 10, right: 10, bottom: 10, containLabel: true },
                     xAxis: { type: 'category', data: this.timeline, boundaryGap: false, axisLabel: { show: false }, axisTick: { show: false }, axisLine: { show: false } },
                     yAxis: { splitLine: { lineStyle: { type: 'dashed', color: '#e5e7eb' } }, axisLabel: { fontSize: 10, fontWeight: 300 } },
@@ -383,8 +372,11 @@
                                 <h2 class="${Theme.styles.title}" style="color: ${c.color}">${c.name}</h2>
                                 <div class="flex items-center gap-3">
                                     <div class="flex gap-3 text-right">
-                                        <div><span class="${Theme.styles.statLabel}">Avg Load</span><div id="val-${c.id}-load" class="font-mono-stat text-xs font-medium" style="color: ${c.color}">--%</div></div>
-                                        <div class="border-l border-gray-100 pl-3">
+                                        <div class="metric-label" onclick="UI.toggleClusterMetric(this, '${c.id}', 'L')">
+                                            <span class="${Theme.styles.statLabel}">Avg Load</span>
+                                            <div id="val-${c.id}-load" class="font-mono-stat text-xs font-medium" style="color: ${c.color}">--%</div>
+                                        </div>
+                                        <div class="border-l border-gray-100 pl-3 metric-label" onclick="UI.toggleClusterMetric(this, '${c.id}', 'F')">
                                             <span class="${Theme.styles.statLabel}">Avg Freq</span>
                                             <div id="val-${c.id}-freq" class="font-mono-stat text-[10px] px-1.5 py-0.5 mt-0.5 rounded font-medium" style="color: ${c.color}; background-color: ${c.color}15">-- GHz</div>
                                         </div>
@@ -405,8 +397,8 @@
                                 <h2 class="${Theme.styles.title}" style="color: ${s.color}">${s.title}</h2>
                                 <div class="flex items-center gap-4">
                                     <div class="flex gap-4">
-                                        ${s.readouts.map(r => `
-                                            <div class="text-right whitespace-nowrap">
+                                        ${s.readouts.map((r, idx) => `
+                                            <div class="text-right whitespace-nowrap metric-label" onclick="UI.toggleStatMetric(this, '${s.id}', ${idx})">
                                                 <span class="${Theme.styles.statLabel}">${r.label}</span>
                                                 <div id="val-${r.id}-cur" class="font-mono-stat text-xs font-medium" style="color: ${r.color}">--${r.unit}</div>
                                             </div>`).join('')}
@@ -421,6 +413,38 @@
                 });
             },
 
+            toggleClusterMetric(el, chartId, typeSuffix) {
+                const chart = Monitor.instances[chartId];
+                if (!chart) return;
+                const isHiding = !el.classList.contains('inactive');
+                el.classList.toggle('inactive', isHiding);
+                
+                const opt = chart.getOption();
+                const names = opt.series.filter(s => s.name.endsWith(' ' + typeSuffix)).map(s => s.name);
+                
+                names.forEach(name => {
+                    chart.dispatchAction({
+                        type: isHiding ? 'legendUnSelect' : 'legendSelect',
+                        name: name
+                    });
+                });
+            },
+
+            toggleStatMetric(el, chartId, seriesIdx) {
+                const chart = Monitor.instances[chartId];
+                if (!chart) return;
+                const isHiding = !el.classList.contains('inactive');
+                el.classList.toggle('inactive', isHiding);
+                
+                const opt = chart.getOption();
+                const name = opt.series[seriesIdx].name;
+                
+                chart.dispatchAction({
+                    type: isHiding ? 'legendUnSelect' : 'legendSelect',
+                    name: name
+                });
+            },
+
             setLayout(mode) {
                 const isGrid = mode === 'grid';
                 ['area-cpu', 'area-stats'].forEach(id => {
@@ -428,18 +452,15 @@
                     if (!el) return;
                     el.classList.toggle('grid-cols-1', !isGrid);
                     if (id === 'area-cpu') {
-                        el.classList.toggle('md:grid-cols-2', isGrid);
-                        el.classList.toggle('lg:grid-cols-3', isGrid);
+                        el.classList.toggle('md:grid-cols-2', isGrid); el.classList.toggle('lg:grid-cols-3', isGrid);
                     } else {
                         el.classList.toggle('md:grid-cols-2', isGrid);
                     }
                 });
-                
                 const gridBtn = document.getElementById('btn-grid');
                 const listBtn = document.getElementById('btn-list');
-                if (gridBtn) gridBtn.className = isGrid ? 'px-4 py-1.5 rounded-md text-sm transition-all bg-blue-600 text-white' : 'px-4 py-1.5 text-sm transition-all text-gray-500';
-                if (listBtn) listBtn.className = !isGrid ? 'px-4 py-1.5 rounded-md text-sm transition-all bg-blue-600 text-white' : 'px-4 py-1.5 text-sm transition-all text-gray-500';
-                
+                if (gridBtn) gridBtn.className = isGrid ? 'px-4 py-1.5 rounded-md text-sm transition-all bg-blue-600 text-white shadow-sm' : 'px-4 py-1.5 text-sm transition-all text-gray-400';
+                if (listBtn) listBtn.className = !isGrid ? 'px-4 py-1.5 rounded-md text-sm transition-all bg-blue-600 text-white shadow-sm' : 'px-4 py-1.5 text-sm transition-all text-gray-400';
                 setTimeout(() => Object.values(Monitor.instances).forEach(i => i.resize()), 150);
             },
 
@@ -465,11 +486,7 @@
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape') {
                 const expanded = document.querySelector('.chart-card.expanded');
-                if (expanded) {
-                    const btn = expanded.querySelector('.toggle-btn');
-                    const key = Object.keys(Monitor.instances).find(k => expanded.querySelector(`#chart-${k}`)) || 'fps';
-                    UI.toggleExpand(btn, key);
-                }
+                if (expanded) UI.toggleExpand(expanded.querySelector('.toggle-btn'));
             }
         });
     </script>
